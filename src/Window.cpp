@@ -45,7 +45,6 @@ int main(void){
     if (!glfwInit())
         return -1;
 
-
     // Create a windowed mode window and its OpenGL context
     printf("Initializing GLFW window\n");
     window = glfwCreateWindow(360, 480, "GBF-IDs", NULL, NULL);
@@ -63,6 +62,10 @@ int main(void){
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    // Set GL clear colors
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+
     // Create a callback for keypresses
     printf("Setting GLFW keypress callback\n");
     glfwSetKeyCallback(window, key_pressed);
@@ -77,7 +80,7 @@ int main(void){
 
     // Load font file into library
     printf("Loading font file\n");
-    error = FT_New_Face(fontLibrary, "Monoid-Regular.ttf", 0, &fontFace);
+    error = FT_New_Face(fontLibrary, "arial.ttf", 0, &fontFace);
     if(error == FT_Err_Unknown_File_Format){
         printf("Font opened, but format is unknown\n");
     }
@@ -89,7 +92,7 @@ int main(void){
     FT_Set_Pixel_Sizes(fontFace, 0, 48);
 
     // Load glyph
-    error = FT_Load_Char(fontFace, 'X', FT_LOAD_RENDER);
+    error = FT_Load_Char(fontFace, 'r', FT_LOAD_RENDER);
     if(error){
         printf("Error loading character\n");
     }
@@ -117,6 +120,9 @@ int main(void){
                 GL_UNSIGNED_BYTE,
                 fontFace->glyph->bitmap.buffer);
 
+        printf("BITMAP BUFFER-----%u (%1s)\n%u\nWidth: %u\nHeight: %u\n",
+                texture, &c, (unsigned int)fontFace->glyph->bitmap.buffer,
+                fontFace->glyph->bitmap.width, fontFace->glyph->bitmap.rows);
         // Set texture options
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -207,9 +213,9 @@ int main(void){
     projMat[0]  *= 2.0f / (right - left);
     projMat[5]  *= 2.0f / (top - bottom);
     projMat[10] *= -2.0f / (farVal - nearVal);
-    projMat[3]  = tx;
-    projMat[7]  = ty;
-    projMat[11] = tz;
+    projMat[12]  = tx;
+    projMat[13]  = ty;
+    projMat[14]  = tz;
 
     printf("Ortho matrix:\n\
             %+1.3f %+1.3f %+1.3f %+1.3f\n\
@@ -223,7 +229,7 @@ int main(void){
 
     GLint loc = glGetUniformLocation(program, "projection");
     if(loc != -1){
-        glUniformMatrix4fv(loc, 1, GL_TRUE, projMat);
+        glUniformMatrix4fv(loc, 1, GL_FALSE, projMat);
     }
     else printf("Can't get projection uniform location\n");
 
@@ -233,11 +239,11 @@ int main(void){
     printf("Starting main GLFW Loop\n");
     while (!glfwWindowShouldClose(window)){
         // Render here
-        //glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT);
         glfwGetFramebufferSize(window, &screen_width, &screen_height);
-        //glViewport(0, 0, screen_width, screen_height);
+        glViewport(0, 0, screen_width, screen_height);
 
-        renderText(&program, text, 25.0f, 25.0f, 1.0f, color);
+        renderText(&program, text, 100.0f, 100.0f, 1.0f, color);
 
         // Swap front and back buffers
         glfwSwapBuffers(window);
@@ -263,7 +269,10 @@ void renderText(GLuint* program, char const* text, GLfloat x, GLfloat y,
     // Iterate through all characters
     for(size_t c = 0; c < strlen(text); c++){
         Character ch = charArray[(size_t)text[c]];
-        //printf("Printing: %f\n", color[0]);
+        //printf("Character info - %c\nSize: %f, %f\nBearing: %f, %f\
+        //        \nAdvance: %i\nTexture ID: %i\n\n", 
+        //        text[c], ch.Size[0], ch.Size[1], ch.Bearing[0],
+        //        ch.Bearing[1], ch.Advance, ch.TextureID);
 
         GLfloat xpos = x + ch.Bearing[0] * scale;
         GLfloat ypos = y - (ch.Size[1] - ch.Bearing[1]) * scale;
