@@ -1,8 +1,29 @@
 #include <Window.h>
 
 GLuint VAO, VBO;
-Character charArray[128];
 GLuint program;
+int fontSizes[] = {36, 18, 16, 15, 14};
+static const char *fontNames[] = {"PTS55F.ttf", "PTS75F.ttf"};
+const int nFontNames = 2;
+Character charArray[nFontNames][sizeof(fontSizes)/sizeof(int)][128];
+const char* raidNames[] = {
+    "Tiamat Omega",
+    "Yggdrasil Omega",
+    "Leviathan Omega",
+    "Colossus Omega",
+    "Luminiera Omega",
+    "Celeste Omega",
+    "Nezha",
+    "Macula Marius",
+    "Apollo",
+    "Dark Angel Olivia",
+    "Medusa",
+    "Twin Elements",
+    "Grand Order",
+    "Proto Bahamut"};
+const int raidNamesLength = 14;
+const char *raidShortcuts[raidNamesLength] = {
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N" };
 
 const GLchar* vertShdr =
 "#version 330 core\n\
@@ -33,18 +54,18 @@ void main()\n\
 
 int main(void){
     GLFWwindow* window;
-    int screen_width = 420;
+    int screen_width = 435;
     int screen_height = 480;
     //const char* text = "Lorem ipsum dolor sit.....";
 
-    FT_Library fontLibrary;
-    FT_Face fontFace;
-    FT_Error error;
 
     // Initialize the library
     printf("Initializing GLFW lib\n");
     if (!glfwInit())
         return -1;
+
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+
 
     // Create a windowed mode window and its OpenGL context
     printf("Initializing GLFW window\n");
@@ -56,6 +77,14 @@ int main(void){
         return -1;
     }
 
+    //GLFWimage images[1];
+    //unsigned int iconSizeX, iconSizeY;
+    //FILE *fp = fopen("ParticleT.png", "r");
+    //png_rgba_load(fp, &iconSizeX, &iconSizeY, &(images[0].pixels));
+    //images[0].width = (int)iconSizeX;
+    //images[0].height = (int)iconSizeY;
+    //glfwSetWindowIcon(window, 1, images);
+
     glViewport(0, 0, screen_width, screen_height);
 
     // Make the window's context current
@@ -64,6 +93,7 @@ int main(void){
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glfwSwapInterval(1);
 
     // Create a callback for keypresses
     printf("Setting GLFW callbacks\n");
@@ -125,74 +155,10 @@ int main(void){
 
     setProjectionMatrix(&program, screen_width, screen_height);
 
-    // Load font library
-    printf("Initializing FreeType\n");
-    error = FT_Init_FreeType(&fontLibrary);
-    if(error){
-        printf("Cannot load FreeType library\n");
+    if(genFontTextures() == -1){
+        printf("Problem loading fonts\n");
         return -1;
     }
-
-    // Load font file into library
-    printf("Loading font file\n");
-    error = FT_New_Face(fontLibrary, "PTS55F.ttf", 0, &fontFace);
-    if(error == FT_Err_Unknown_File_Format){
-        printf("Font opened, but format is unknown\n");
-    }
-    else if(error){
-        printf("Font file cannot be read");
-    }
-
-    // Set font size
-    FT_Set_Pixel_Sizes(fontFace, 0, 36);
-
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-    for(GLubyte c = 0; c < 128; c++){
-        // Load character glyph
-        if(FT_Load_Char(fontFace, c, FT_LOAD_RENDER)){
-            printf("Error-FreeType: Failed to load glyph\n");
-            //continue;
-        }
-
-        // Generate texture
-        GLuint texture;
-        glGenTextures(1, &texture);
-        glBindTexture(GL_TEXTURE_2D, texture);
-        glTexImage2D(
-                GL_TEXTURE_2D,
-                0,
-                GL_RED,
-                fontFace->glyph->bitmap.width,
-                fontFace->glyph->bitmap.rows,
-                0,
-                GL_RED,
-                GL_UNSIGNED_BYTE,
-                fontFace->glyph->bitmap.buffer);
-
-        //printf("BITMAP BUFFER-----%u (%1s)\n%u\nWidth: %u\nHeight: %u\n",
-        //        texture, &c, (unsigned int)fontFace->glyph->bitmap.buffer,
-        //        fontFace->glyph->bitmap.width, fontFace->glyph->bitmap.rows);
-        // Set texture options
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        // Store character for later use
-        charArray[c].TextureID = texture;
-        charArray[c].Size[0] = fontFace->glyph->bitmap.width;
-        charArray[c].Size[1] = fontFace->glyph->bitmap.rows;
-        charArray[c].Bearing[0] = fontFace->glyph->bitmap_left;
-        charArray[c].Bearing[1] = fontFace->glyph->bitmap_top;
-        charArray[c].Advance = fontFace->glyph->advance.x;
-
-        //texDump(&texture, charArray[c].Size[0], charArray[c].Size[1]);
-    }
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    FT_Done_Face(fontFace);
-    FT_Done_FreeType(fontLibrary);
 
     // Loop until the user closes the window
     printf("Starting main GLFW Loop\n");
@@ -207,6 +173,7 @@ int main(void){
         //renderText(&program, text, 20.0f, 200.0f, 0.7f, fontColor);
 
         drawMainMenu(&program, screen_width, screen_height);
+        //printf("Timer: %f\n", glfwGetTime());
 
         // Swap front and back buffers
         glfwSwapBuffers(window);
@@ -222,45 +189,62 @@ int main(void){
 void drawMainMenu(GLuint* prog, int width, int height){
     // FONTSIZE_BASE = 36PX
     float fontColor[3];
-    float font_baseSize = 36.0f;
-    float scale14px = 14.0f/font_baseSize;
-    float scale15px = 15.0f/font_baseSize;
-    const char* raidNames[] = {
-        "Tiamat Omega",
-        "Yggdrasil Omega",
-        "Leviathan Omega",
-        "Colossus Omega",
-        "Luminiera Omega",
-        "Celeste Omega",
-        "Nezha",
-        "Macula Marius",
-        "Apollo",
-        "Dark Angel Olivia",
-        "Medusa",
-        "Twin Elements",
-        "Grand Order",
-        "Proto Bahamut"};
-    int raidNamesLength = 14;
 
+    int headerLocX = 15;
+    int headerLocY = height-50;
     setFontColor(fontColor, 0);
-    renderText(prog, "GBF Raid IDs", 15, height-15-36, 1.0, fontColor);
+    renderText(prog, "GBF Raid IDs", headerLocX, headerLocY, 1, 0, fontColor);
     renderText(prog,
             "Press the key next to the boss' names to filter incoming IDs",
-            15, height-65-15, scale15px, fontColor);
+            headerLocX, headerLocY-25, 0, 2, fontColor);
+
+    //int selectLocX = 15;
+    //int selectLocY = height-115-20*raidNamesLength;
+    int selectLocX = 200;
+    int selectLocY = height-105;
+    renderText(prog, "-1- Select All",
+            selectLocX, selectLocY,0, 2, fontColor);
+    renderText(prog, "-2- Select None",
+            selectLocX, selectLocY-20, 0, 2, fontColor);
+    setFontColor(fontColor, 3);
+    renderText(prog, "-3- Toggle Sound",
+            selectLocX, selectLocY-40, 0, 2, fontColor);
+    renderText(prog, "-4- Toggle Auto-Copy",
+            selectLocX, selectLocY-60, 0, 2, fontColor);
 
     int tableLocX = 15;
-    int tableLocY = height - 110;
-    int tableCheckCharacterLength = 15;
+    int tableLocY = height - 105;
+    int tableCheckCharacterLength = 25;
 
     for(int i = 0; i < raidNamesLength; i++){
+        char *raidShortcutDisplay = (char*)malloc(
+                2*strlen("(") + // Make space for parenthesis
+                strlen(raidShortcuts[i]) + // Make space for shortcut char
+                1); // Make space for null termination
+        strcpy(raidShortcutDisplay, "-");
+        strcat(raidShortcutDisplay, raidShortcuts[i]);
+        strcat(raidShortcutDisplay, "-");
+
+        setFontColor(fontColor, 3);
+        renderText(prog, raidShortcutDisplay, tableLocX, tableLocY - 20*i,
+                0, 2, fontColor);
+
+        setFontColor(fontColor, 0);
         renderText(prog, raidNames[i], tableLocX + tableCheckCharacterLength,
-                tableLocY - 19*i, scale15px, fontColor);
+                tableLocY - 20*i, 0, 2, fontColor);
+
+        free(raidShortcutDisplay);
     }
+
+    int raidListLocX = 200;
+    int raidListLocY = height-105-5*20;
+    setFontColor(fontColor, 0);
+    renderText(prog, "Raid List:", raidListLocX, raidListLocY, 1, 2, fontColor);
 
 }
 
-void renderText(GLuint* prog, char const* text, GLfloat x, GLfloat y,
-        GLfloat scale, float* color){
+void renderText(GLuint* prog, const char* text, GLfloat x, GLfloat y,
+        unsigned int selectedFont, unsigned int fontSizeIndex, float* color){
 
     // Activate corresponding render state
     glUniform3f(glGetUniformLocation(*prog, "textColor"), color[0],
@@ -270,17 +254,17 @@ void renderText(GLuint* prog, char const* text, GLfloat x, GLfloat y,
 
     // Iterate through all characters
     for(size_t c = 0; c < strlen(text); c++){
-        Character ch = charArray[(size_t)text[c]];
+        Character ch = charArray[selectedFont][fontSizeIndex][(size_t)text[c]];
         //printf("Character info - %c\nSize: %f, %f\nBearing: %f, %f
         //        \nAdvance: %i\nTexture ID: %i\n\n", 
         //        text[c], ch.Size[0], ch.Size[1], ch.Bearing[0],
         //        ch.Bearing[1], ch.Advance, ch.TextureID);
 
-        GLfloat xpos = x + ch.Bearing[0] * scale;
-        GLfloat ypos = y - (ch.Size[1] - ch.Bearing[1]) * scale;
+        GLfloat xpos = x + ch.Bearing[0];
+        GLfloat ypos = y - (ch.Size[1] - ch.Bearing[1]);
 
-        GLfloat w = ch.Size[0] * scale;
-        GLfloat h = ch.Size[1] * scale;
+        GLfloat w = ch.Size[0];
+        GLfloat h = ch.Size[1];
         // Update VBO for each character
         GLfloat vertices[6][4] = {
             { xpos,     ypos + h,   0.0, 0.0 },
@@ -302,10 +286,93 @@ void renderText(GLuint* prog, char const* text, GLfloat x, GLfloat y,
         //glPrintError(glGetError());
         // Now advance cursors for next glyph
         // (note that advance is number of 1/64 pixels)
-        x += (ch.Advance >> 6) * scale; // Bitshift by 6 to get value in pixels
+        x += (ch.Advance >> 6); // Bitshift by 6 to get value in pixels
     }
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+
+static int genFontTextures(){
+    FT_Library fontLibrary;
+    FT_Face fontFace;
+    FT_Error error;
+
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    for(unsigned int n = 0; n < nFontNames; n++){
+        // Load font library
+        printf("Initializing FreeType\n");
+        error = FT_Init_FreeType(&fontLibrary);
+        if(error){
+            printf("Cannot load FreeType library\n");
+            return -1;
+        }
+
+        // Load font file into library
+        printf("Loading font file\n");
+        error = FT_New_Face(fontLibrary, fontNames[n], 0, &fontFace);
+        if(error == FT_Err_Unknown_File_Format){
+            printf("Font opened, but format is unknown\n");
+        }
+        else if(error){
+            printf("Font file cannot be read - %s", fontNames[n]);
+        }
+
+        for(unsigned int i = 0; i < sizeof(fontSizes)/sizeof(int); i++){
+            // Set font size
+            FT_Set_Pixel_Sizes(fontFace, 0, fontSizes[i]);
+
+            for(GLubyte c = 0; c < 128; c++){
+                // Load character glyph
+                if(FT_Load_Char(fontFace, c, FT_LOAD_RENDER)){
+                    printf("Error-FreeType: Failed to load glyph\n");
+                    //continue;
+                }
+
+                // Generate texture
+                GLuint texture;
+                glGenTextures(1, &texture);
+                glBindTexture(GL_TEXTURE_2D, texture);
+                glTexImage2D(
+                        GL_TEXTURE_2D,
+                        0,
+                        GL_RED,
+                        fontFace->glyph->bitmap.width,
+                        fontFace->glyph->bitmap.rows,
+                        0,
+                        GL_RED,
+                        GL_UNSIGNED_BYTE,
+                        fontFace->glyph->bitmap.buffer);
+
+                //printf("BITMAP BUFFER-----%u (%1s)\n%u\nWidth: %u\nHeight: %u\n",
+                //        texture, &c, (unsigned int)fontFace->glyph->bitmap.buffer,
+                //        fontFace->glyph->bitmap.width, fontFace->glyph->bitmap.rows);
+                // Set texture options
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+                // Store character for later use
+                charArray[n][i][c].TextureID = texture;
+                charArray[n][i][c].Size[0] = fontFace->glyph->bitmap.width;
+                charArray[n][i][c].Size[1] = fontFace->glyph->bitmap.rows;
+                charArray[n][i][c].Bearing[0] = fontFace->glyph->bitmap_left;
+                charArray[n][i][c].Bearing[1] = fontFace->glyph->bitmap_top;
+                charArray[n][i][c].Advance = fontFace->glyph->advance.x;
+
+                //texDump(&texture, charArray[c].Size[0], charArray[c].Size[1]);
+            }
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
+    }
+
+    FT_Done_Face(fontFace);
+    FT_Done_FreeType(fontLibrary);
+
+    return 0;
 }
 
 void texDump(GLuint* texID, int W, int H) {
@@ -408,9 +475,9 @@ void setFontColor(float* colorVar, int colorChoice){
             colorVar[2] = 1.0f;
             break;
         case 2: // Light Grey
-            colorVar[0] = 0.2f;
-            colorVar[1] = 0.2f;
-            colorVar[2] = 0.2f;
+            colorVar[0] = 0.1f;
+            colorVar[1] = 0.1f;
+            colorVar[2] = 0.1f;
             break;
         case 3: // Dark Grey
             colorVar[0] = 0.7f;

@@ -6,15 +6,16 @@
 
 //#include <glm.h>
 #include <stdio.h>
-#include <cstdio>
-#include <map>
+#include <string.h>
+
 
 static void key_pressed(GLFWwindow*, int, int, int, int);
 static void window_resized(GLFWwindow*, int, int);
 
 void setProjectionMatrix(GLuint*, int, int);
 void drawMainMenu(GLuint*, int, int);
-void renderText(GLuint*, char const*, GLfloat, GLfloat, GLfloat, float*);
+void renderText(GLuint*, const char*, GLfloat, GLfloat, unsigned int, unsigned int, float*);
+static int genFontTextures();
 void texDump(GLuint*, int, int);
 void setFontColor(float*, int);
 void glPrintError(GLenum);
