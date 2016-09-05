@@ -2,6 +2,7 @@
 
 GLuint VAO, VBO;
 Character charArray[128];
+GLuint program;
 
 const GLchar* vertShdr =
 "#version 330 core\n\
@@ -32,9 +33,9 @@ void main()\n\
 
 int main(void){
     GLFWwindow* window;
-    int screen_width = 360;
+    int screen_width = 420;
     int screen_height = 480;
-    const char* text = "Lorem ipsum dolor sit.....";
+    //const char* text = "Lorem ipsum dolor sit.....";
 
     FT_Library fontLibrary;
     FT_Face fontFace;
@@ -47,7 +48,8 @@ int main(void){
 
     // Create a windowed mode window and its OpenGL context
     printf("Initializing GLFW window\n");
-    window = glfwCreateWindow(360, 480, "GBF-IDs", NULL, NULL);
+    window = glfwCreateWindow(screen_width, screen_height,
+            "GBF-IDs", NULL, NULL);
     if (!window){
         printf("Problem creating window\n");
         glfwTerminate();
@@ -63,13 +65,10 @@ int main(void){
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // Set GL clear colors
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
-
     // Create a callback for keypresses
-    printf("Setting GLFW keypress callback\n");
+    printf("Setting GLFW callbacks\n");
     glfwSetKeyCallback(window, key_pressed);
+    glfwSetWindowSizeCallback(window, window_resized);
 
     // Compile the shaders
     GLuint vertex, fragment;
@@ -98,7 +97,7 @@ int main(void){
     }
 
     // Create shader program
-    GLuint program = glCreateProgram();
+    program = glCreateProgram();
     glAttachShader(program, vertex);
     glAttachShader(program, fragment);
     glLinkProgram(program);
@@ -114,6 +113,18 @@ int main(void){
     glDeleteShader(vertex);
     glDeleteShader(fragment);
 
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat)*6*4, NULL, GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(GL_FLOAT), 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    setProjectionMatrix(&program, screen_width, screen_height);
+
     // Load font library
     printf("Initializing FreeType\n");
     error = FT_Init_FreeType(&fontLibrary);
@@ -124,7 +135,7 @@ int main(void){
 
     // Load font file into library
     printf("Loading font file\n");
-    error = FT_New_Face(fontLibrary, "arial.ttf", 0, &fontFace);
+    error = FT_New_Face(fontLibrary, "PTS55F.ttf", 0, &fontFace);
     if(error == FT_Err_Unknown_File_Format){
         printf("Font opened, but format is unknown\n");
     }
@@ -133,7 +144,7 @@ int main(void){
     }
 
     // Set font size
-    FT_Set_Pixel_Sizes(fontFace, 0, 48);
+    FT_Set_Pixel_Sizes(fontFace, 0, 36);
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
@@ -147,6 +158,7 @@ int main(void){
         // Generate texture
         GLuint texture;
         glGenTextures(1, &texture);
+        glBindTexture(GL_TEXTURE_2D, texture);
         glTexImage2D(
                 GL_TEXTURE_2D,
                 0,
@@ -158,9 +170,9 @@ int main(void){
                 GL_UNSIGNED_BYTE,
                 fontFace->glyph->bitmap.buffer);
 
-        printf("BITMAP BUFFER-----%u (%1s)\n%u\nWidth: %u\nHeight: %u\n",
-                texture, &c, (unsigned int)fontFace->glyph->bitmap.buffer,
-                fontFace->glyph->bitmap.width, fontFace->glyph->bitmap.rows);
+        //printf("BITMAP BUFFER-----%u (%1s)\n%u\nWidth: %u\nHeight: %u\n",
+        //        texture, &c, (unsigned int)fontFace->glyph->bitmap.buffer,
+        //        fontFace->glyph->bitmap.width, fontFace->glyph->bitmap.rows);
         // Set texture options
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -174,73 +186,27 @@ int main(void){
         charArray[c].Bearing[0] = fontFace->glyph->bitmap_left;
         charArray[c].Bearing[1] = fontFace->glyph->bitmap_top;
         charArray[c].Advance = fontFace->glyph->advance.x;
+
+        //texDump(&texture, charArray[c].Size[0], charArray[c].Size[1]);
     }
     glBindTexture(GL_TEXTURE_2D, 0);
 
     FT_Done_Face(fontFace);
     FT_Done_FreeType(fontLibrary);
 
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat)*6*4, NULL, GL_DYNAMIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(GL_FLOAT), 0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-
-    // Set projection uniform
-    GLfloat projMat[16] = {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f};
-    GLfloat left    = 0.0f;
-    GLfloat right   = (GLfloat)screen_width;
-    GLfloat bottom  = 0.0f;
-    GLfloat top     = (GLfloat)screen_height;
-    GLfloat nearVal = 0.0f;
-    GLfloat farVal  = 1.0f;
-    GLfloat tx      = -(right + left)/(right-left);
-    GLfloat ty      = -(top + bottom)/(top-bottom);
-    GLfloat tz      = -(farVal + nearVal)/(farVal - nearVal);
-
-    projMat[0]  *= 2.0f / (right - left);
-    projMat[5]  *= 2.0f / (top - bottom);
-    projMat[10] *= -2.0f / (farVal - nearVal);
-    projMat[12]  = tx;
-    projMat[13]  = ty;
-    projMat[14]  = tz;
-
-    printf("Ortho matrix:\n\
-            %+1.3f %+1.3f %+1.3f %+1.3f\n\
-            %+1.3f %+1.3f %+1.3f %+1.3f\n\
-            %+1.3f %+1.3f %+1.3f %+1.3f\n\
-            %+1.3f %+1.3f %+1.3f %+1.3f\n",
-            projMat[0],   projMat[1],   projMat[2],   projMat[3],
-            projMat[4],   projMat[5],   projMat[6],   projMat[7],
-            projMat[8],   projMat[9],   projMat[10],  projMat[11],
-            projMat[12],  projMat[13],  projMat[14],  projMat[15]);
-
-    GLint loc = glGetUniformLocation(program, "projection");
-    if(loc != -1){
-        glUniformMatrix4fv(loc, 1, GL_FALSE, projMat);
-    }
-    else printf("Can't get projection uniform location\n");
-
-    float color[3] = {0.5f, 0.8f, 0.2f};
-
     // Loop until the user closes the window
     printf("Starting main GLFW Loop\n");
     while (!glfwWindowShouldClose(window)){
         // Render here
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        glClearColor(0.95f, 0.95f, 0.95f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         glfwGetFramebufferSize(window, &screen_width, &screen_height);
         glViewport(0, 0, screen_width, screen_height);
 
-        renderText(&program, text, 100.0f, 100.0f, 1.0f, color);
+        //setFontColor(fontColor, 1);
+        //renderText(&program, text, 20.0f, 200.0f, 0.7f, fontColor);
+
+        drawMainMenu(&program, screen_width, screen_height);
 
         // Swap front and back buffers
         glfwSwapBuffers(window);
@@ -253,11 +219,51 @@ int main(void){
     return 0;
 }
 
-void renderText(GLuint* program, char const* text, GLfloat x, GLfloat y,
+void drawMainMenu(GLuint* prog, int width, int height){
+    // FONTSIZE_BASE = 36PX
+    float fontColor[3];
+    float font_baseSize = 36.0f;
+    float scale14px = 14.0f/font_baseSize;
+    float scale15px = 15.0f/font_baseSize;
+    const char* raidNames[] = {
+        "Tiamat Omega",
+        "Yggdrasil Omega",
+        "Leviathan Omega",
+        "Colossus Omega",
+        "Luminiera Omega",
+        "Celeste Omega",
+        "Nezha",
+        "Macula Marius",
+        "Apollo",
+        "Dark Angel Olivia",
+        "Medusa",
+        "Twin Elements",
+        "Grand Order",
+        "Proto Bahamut"};
+    int raidNamesLength = 14;
+
+    setFontColor(fontColor, 0);
+    renderText(prog, "GBF Raid IDs", 15, height-15-36, 1.0, fontColor);
+    renderText(prog,
+            "Press the key next to the boss' names to filter incoming IDs",
+            15, height-65-15, scale15px, fontColor);
+
+    int tableLocX = 15;
+    int tableLocY = height - 110;
+    int tableCheckCharacterLength = 15;
+
+    for(int i = 0; i < raidNamesLength; i++){
+        renderText(prog, raidNames[i], tableLocX + tableCheckCharacterLength,
+                tableLocY - 19*i, scale15px, fontColor);
+    }
+
+}
+
+void renderText(GLuint* prog, char const* text, GLfloat x, GLfloat y,
         GLfloat scale, float* color){
 
     // Activate corresponding render state
-    glUniform3f(glGetUniformLocation(*program, "textColor"), color[0],
+    glUniform3f(glGetUniformLocation(*prog, "textColor"), color[0],
             color[1], color[2]);
     glActiveTexture(GL_TEXTURE0);
     glBindVertexArray(VAO);
@@ -265,7 +271,7 @@ void renderText(GLuint* program, char const* text, GLfloat x, GLfloat y,
     // Iterate through all characters
     for(size_t c = 0; c < strlen(text); c++){
         Character ch = charArray[(size_t)text[c]];
-        //printf("Character info - %c\nSize: %f, %f\nBearing: %f, %f\
+        //printf("Character info - %c\nSize: %f, %f\nBearing: %f, %f
         //        \nAdvance: %i\nTexture ID: %i\n\n", 
         //        text[c], ch.Size[0], ch.Size[1], ch.Bearing[0],
         //        ch.Bearing[1], ch.Advance, ch.TextureID);
@@ -302,6 +308,78 @@ void renderText(GLuint* program, char const* text, GLfloat x, GLfloat y,
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+void texDump(GLuint* texID, int W, int H) {
+    char fileName[100];
+    
+    if(snprintf(fileName, 100, "tex-%u.tga", *texID) < 0){
+        printf("Program writing name for tex dump\n");
+        return;
+    }
+
+    FILE   *out = fopen(fileName,"wb");
+    char   *pixel_data = new char[4*W*H];
+    short  TGAhead[] = { 0, 2, 0, 0, 0, 0, (short)W, (short)H, 32 };
+
+    printf("Dumping texture-%u\n", *texID);
+
+    //glBindTexture(GL_TEXTURE_2D, *texID);
+    //glGetTexImage(
+    //        GL_TEXTURE_2D,
+    //        0,
+    //        GL_RED_INTEGER,
+    //        GL_UNSIGNED_BYTE,
+    //        pixel_data);
+            
+    //glReadBuffer(GL_FRONT);
+    //glReadPixels(0, 0, W, H, GL_BGRA, GL_UNSIGNED_BYTE, pixel_data);
+
+    fwrite(TGAhead, sizeof(TGAhead), 1, out);
+    fwrite(pixel_data, 4*W*H, 1, out);
+    fclose(out);
+}
+
+void setProjectionMatrix(GLuint *prog, int screen_width, int screen_height){
+    // Set projection uniform
+    GLfloat projMat[16] = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f};
+    GLfloat left    = 0.0f;
+    GLfloat right   = (GLfloat)screen_width;
+    GLfloat bottom  = 0.0f;
+    GLfloat top     = (GLfloat)screen_height;
+    GLfloat nearVal = 0.0f;
+    GLfloat farVal  = 1.0f;
+    GLfloat tx      = -(right + left)/(right-left);
+    GLfloat ty      = -(top + bottom)/(top-bottom);
+    GLfloat tz      = -(farVal + nearVal)/(farVal - nearVal);
+
+    projMat[0]  *= 2.0f / (right - left);
+    projMat[5]  *= 2.0f / (top - bottom);
+    projMat[10] *= -2.0f / (farVal - nearVal);
+    projMat[12]  = tx;
+    projMat[13]  = ty;
+    projMat[14]  = tz;
+
+    //printf("Ortho matrix:\n\
+    //        %+1.3f %+1.3f %+1.3f %+1.3f\n\
+    //        %+1.3f %+1.3f %+1.3f %+1.3f\n\
+    //        %+1.3f %+1.3f %+1.3f %+1.3f\n\
+    //        %+1.3f %+1.3f %+1.3f %+1.3f\n",
+    //        projMat[0],   projMat[1],   projMat[2],   projMat[3],
+    //        projMat[4],   projMat[5],   projMat[6],   projMat[7],
+    //        projMat[8],   projMat[9],   projMat[10],  projMat[11],
+    //        projMat[12],  projMat[13],  projMat[14],  projMat[15]);
+
+    GLint loc = glGetUniformLocation(*prog, "projection");
+    if(loc != -1){
+        glUniformMatrix4fv(loc, 1, GL_FALSE, projMat);
+    }
+    else printf("Can't get projection uniform location\n");
+
+}
+
 static void key_pressed(GLFWwindow* window, int key, int scancode,
         int action,int mods){
     if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS){
@@ -309,8 +387,62 @@ static void key_pressed(GLFWwindow* window, int key, int scancode,
     }
 }
 
+static void window_resized(GLFWwindow* window, int width, int height){
+    setProjectionMatrix(&program, width, height);
+}
+
 void error_callback(int error, const char* description){
     printf("Error: %s\n", description);
+}
+
+void setFontColor(float* colorVar, int colorChoice){
+    switch(colorChoice){
+        case 0: // Black
+            colorVar[0] = 0.05f;
+            colorVar[1] = 0.05f;
+            colorVar[2] = 0.05f;
+            break;
+        case 1: // White
+            colorVar[0] = 1.0f;
+            colorVar[1] = 1.0f;
+            colorVar[2] = 1.0f;
+            break;
+        case 2: // Light Grey
+            colorVar[0] = 0.2f;
+            colorVar[1] = 0.2f;
+            colorVar[2] = 0.2f;
+            break;
+        case 3: // Dark Grey
+            colorVar[0] = 0.7f;
+            colorVar[1] = 0.7f;
+            colorVar[2] = 0.7f;
+            break;
+        case 4: // Blue
+            colorVar[0] = 0.0f;
+            colorVar[1] = 0.0f;
+            colorVar[2] = 1.0f;
+            break;
+        case 5: // Yellow
+            colorVar[0] = 1.0f;
+            colorVar[1] = 1.0f;
+            colorVar[2] = 0.0f;
+            break;
+        case 6: // Purple
+            colorVar[0] = 1.0f;
+            colorVar[1] = 0.0f;
+            colorVar[2] = 1.0f;
+            break;
+        case 7: // Cyan
+            colorVar[0] = 0.0f;
+            colorVar[1] = 1.0f;
+            colorVar[2] = 1.0f;
+            break;
+
+        default: // Black
+            colorVar[0] = 0.0f;
+            colorVar[1] = 0.0f;
+            colorVar[2] = 0.0f;
+    }
 }
 
 void glPrintError(GLenum error){

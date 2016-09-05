@@ -1,0 +1,25 @@
+id ICON "include/ParticleT.ico"
+
+1 VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904E4"
+    BEGIN
+      VALUE "FileDescription", "Yoink GBF IDs from Twitter"
+      VALUE "FileVersion", "1.0"
+      VALUE "InternalName", "GBD-IDs"
+      VALUE "LegalCopyright", "Sahil Patel"
+      VALUE "OriginalFilename", "GBF-IDs.exe"
+      VALUE "ProductName", "GBF-IDs"
+      VALUE "ProductVersion", "1.0"
+    END
+  END
+
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1252
+  END
+END

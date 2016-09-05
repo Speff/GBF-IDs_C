@@ -10,8 +10,13 @@
 #include <map>
 
 static void key_pressed(GLFWwindow*, int, int, int, int);
-//void paintGlyphToTexture(
+static void window_resized(GLFWwindow*, int, int);
+
+void setProjectionMatrix(GLuint*, int, int);
+void drawMainMenu(GLuint*, int, int);
 void renderText(GLuint*, char const*, GLfloat, GLfloat, GLfloat, float*);
+void texDump(GLuint*, int, int);
+void setFontColor(float*, int);
 void glPrintError(GLenum);
 
 struct Character {
