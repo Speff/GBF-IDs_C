@@ -54,11 +54,12 @@ int main(void){
         return -1;
     }
 
+    glViewport(0, 0, screen_width, screen_height);
+
     // Make the window's context current
     printf("Making GLFW context current\n");
     glfwMakeContextCurrent(window);
 
-    // Enable blending
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -69,77 +70,6 @@ int main(void){
     // Create a callback for keypresses
     printf("Setting GLFW keypress callback\n");
     glfwSetKeyCallback(window, key_pressed);
-
-    // Load font library
-    printf("Initializing FreeType\n");
-    error = FT_Init_FreeType(&fontLibrary);
-    if(error){
-        printf("Cannot load FreeType library\n");
-        return -1;
-    }
-
-    // Load font file into library
-    printf("Loading font file\n");
-    error = FT_New_Face(fontLibrary, "arial.ttf", 0, &fontFace);
-    if(error == FT_Err_Unknown_File_Format){
-        printf("Font opened, but format is unknown\n");
-    }
-    else if(error){
-        printf("Font file cannot be read");
-    }
-
-    // Set font size
-    FT_Set_Pixel_Sizes(fontFace, 0, 48);
-
-    // Load glyph
-    error = FT_Load_Char(fontFace, 'r', FT_LOAD_RENDER);
-    if(error){
-        printf("Error loading character\n");
-    }
-
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-    for(GLubyte c = 0; c < 128; c++){
-        // Load character glyph
-        if(FT_Load_Char(fontFace, c, FT_LOAD_RENDER)){
-            printf("Error-FreeType: Failed to load glyph\n");
-            //continue;
-        }
-
-        // Generate texture
-        GLuint texture;
-        glGenTextures(1, &texture);
-        glTexImage2D(
-                GL_TEXTURE_2D,
-                0,
-                GL_RED,
-                fontFace->glyph->bitmap.width,
-                fontFace->glyph->bitmap.rows,
-                0,
-                GL_RED,
-                GL_UNSIGNED_BYTE,
-                fontFace->glyph->bitmap.buffer);
-
-        printf("BITMAP BUFFER-----%u (%1s)\n%u\nWidth: %u\nHeight: %u\n",
-                texture, &c, (unsigned int)fontFace->glyph->bitmap.buffer,
-                fontFace->glyph->bitmap.width, fontFace->glyph->bitmap.rows);
-        // Set texture options
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        // Store character for later use
-        charArray[c].TextureID = texture;
-        charArray[c].Size[0] = fontFace->glyph->bitmap.width;
-        charArray[c].Size[1] = fontFace->glyph->bitmap.rows;
-        charArray[c].Bearing[0] = fontFace->glyph->bitmap_left;
-        charArray[c].Bearing[1] = fontFace->glyph->bitmap_top;
-        charArray[c].Advance = fontFace->glyph->advance.x;
-    }
-
-    FT_Done_Face(fontFace);
-    FT_Done_FreeType(fontLibrary);
 
     // Compile the shaders
     GLuint vertex, fragment;
@@ -183,6 +113,72 @@ int main(void){
     // Delete shaders
     glDeleteShader(vertex);
     glDeleteShader(fragment);
+
+    // Load font library
+    printf("Initializing FreeType\n");
+    error = FT_Init_FreeType(&fontLibrary);
+    if(error){
+        printf("Cannot load FreeType library\n");
+        return -1;
+    }
+
+    // Load font file into library
+    printf("Loading font file\n");
+    error = FT_New_Face(fontLibrary, "arial.ttf", 0, &fontFace);
+    if(error == FT_Err_Unknown_File_Format){
+        printf("Font opened, but format is unknown\n");
+    }
+    else if(error){
+        printf("Font file cannot be read");
+    }
+
+    // Set font size
+    FT_Set_Pixel_Sizes(fontFace, 0, 48);
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    for(GLubyte c = 0; c < 128; c++){
+        // Load character glyph
+        if(FT_Load_Char(fontFace, c, FT_LOAD_RENDER)){
+            printf("Error-FreeType: Failed to load glyph\n");
+            //continue;
+        }
+
+        // Generate texture
+        GLuint texture;
+        glGenTextures(1, &texture);
+        glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RED,
+                fontFace->glyph->bitmap.width,
+                fontFace->glyph->bitmap.rows,
+                0,
+                GL_RED,
+                GL_UNSIGNED_BYTE,
+                fontFace->glyph->bitmap.buffer);
+
+        printf("BITMAP BUFFER-----%u (%1s)\n%u\nWidth: %u\nHeight: %u\n",
+                texture, &c, (unsigned int)fontFace->glyph->bitmap.buffer,
+                fontFace->glyph->bitmap.width, fontFace->glyph->bitmap.rows);
+        // Set texture options
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        // Store character for later use
+        charArray[c].TextureID = texture;
+        charArray[c].Size[0] = fontFace->glyph->bitmap.width;
+        charArray[c].Size[1] = fontFace->glyph->bitmap.rows;
+        charArray[c].Bearing[0] = fontFace->glyph->bitmap_left;
+        charArray[c].Bearing[1] = fontFace->glyph->bitmap_top;
+        charArray[c].Advance = fontFace->glyph->advance.x;
+    }
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    FT_Done_Face(fontFace);
+    FT_Done_FreeType(fontLibrary);
 
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
@@ -239,6 +235,7 @@ int main(void){
     printf("Starting main GLFW Loop\n");
     while (!glfwWindowShouldClose(window)){
         // Render here
+        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         glfwGetFramebufferSize(window, &screen_width, &screen_height);
         glViewport(0, 0, screen_width, screen_height);
@@ -250,7 +247,6 @@ int main(void){
 
         // Poll for and process events
         glfwPollEvents();
-        //glPrintError(glGetError());
     }
 
     glfwTerminate();
@@ -297,6 +293,7 @@ void renderText(GLuint* program, char const* text, GLfloat x, GLfloat y,
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         // Render quad
         glDrawArrays(GL_TRIANGLES, 0, 6);
+        //glPrintError(glGetError());
         // Now advance cursors for next glyph
         // (note that advance is number of 1/64 pixels)
         x += (ch.Advance >> 6) * scale; // Bitshift by 6 to get value in pixels
