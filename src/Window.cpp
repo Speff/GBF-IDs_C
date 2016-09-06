@@ -57,6 +57,24 @@ int main(void){
     int screen_width = 435;
     int screen_height = 480;
     //const char* text = "Lorem ipsum dolor sit.....";
+    CURL *curl;
+    CURLcode res;
+
+    char *signedurl = (char*)malloc(sizeof(char) * 1024); /* Not how it will be, but works in this example. */
+    const char *url = "https://api.twitter.com/1.1/statuses/update.json";
+    signedurl = oauth_sign_url2(url, NULL, OA_HMAC, "POST", "consumer_key", "consumer_secret", "user_token", "user_secret");
+
+    curl = curl_easy_init();
+    if(curl){
+        curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        res = curl_easy_perform(curl);
+        if(res != CURLE_OK)
+            printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+
+        curl_easy_cleanup(curl);
+    }
+
 
 
     // Initialize the library

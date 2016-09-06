@@ -7,6 +7,11 @@
 //#include <glm.h>
 #include <stdio.h>
 #include <string.h>
+#include <curl/curl.h>
+
+#include <oauth.h>
+#include <xmalloc.h>
+#include <oauthConfig.h>
 
 
 static void key_pressed(GLFWwindow*, int, int, int, int);

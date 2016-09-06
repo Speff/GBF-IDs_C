@@ -8,12 +8,12 @@ SRCDIR=./src
 OBJDIR=./obj
 LIBDIR=./lib
 
-LIBS=-lm -lfreetype.dll -lglfw3dll -lopengl32
+LIBS=-lm -lfreetype.dll -lglfw3dll -lopengl32 -lcrypto -lgdi32 -lcurldll -loauth
 
 _DEPS=Window.h gl_core_3_3.h ft2build.h
 DEPS=$(patsubst %,$(INCDIR)/%,$(_DEPS))
 
-_OBJ=gl_core_3_3.o Window.o
+_OBJ=gl_core_3_3.o Window.o oauth.o xmalloc.o hash.o
 OBJ=$(patsubst %,$(OBJDIR)/%,$(_OBJ))
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp $(DEPS)
