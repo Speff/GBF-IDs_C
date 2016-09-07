@@ -1,29 +1,12 @@
 #include <Window.h>
 
+volatile sig_atomic_t twitConnectionInitialized = 0;
 GLuint VAO, VBO;
 GLuint program;
 int fontSizes[] = {36, 18, 16, 15, 14};
 static const char *fontNames[] = {"PTS55F.ttf", "PTS75F.ttf"};
 const int nFontNames = 2;
 Character charArray[nFontNames][sizeof(fontSizes)/sizeof(int)][128];
-const char* raidNames[] = {
-    "Tiamat Omega",
-    "Yggdrasil Omega",
-    "Leviathan Omega",
-    "Colossus Omega",
-    "Luminiera Omega",
-    "Celeste Omega",
-    "Nezha",
-    "Macula Marius",
-    "Apollo",
-    "Dark Angel Olivia",
-    "Medusa",
-    "Twin Elements",
-    "Grand Order",
-    "Proto Bahamut"};
-const int raidNamesLength = 14;
-const char *raidShortcuts[raidNamesLength] = {
-    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N" };
 
 const GLchar* vertShdr =
 "#version 330 core\n\
@@ -52,38 +35,34 @@ void main()\n\
     color = vec4(textColor, 1.0) * sampled;\n\
 }  ";
 
+
 int main(void){
     GLFWwindow* window;
     int screen_width = 435;
     int screen_height = 480;
-    //const char* text = "Lorem ipsum dolor sit.....";
-    CURL *curl;
-    CURLcode res;
 
-    char *signedurl = (char*)malloc(sizeof(char) * 1024); /* Not how it will be, but works in this example. */
-    const char *url = "https://api.twitter.com/1.1/statuses/update.json";
-    signedurl = oauth_sign_url2(url, NULL, OA_HMAC, "POST", "consumer_key", "consumer_secret", "user_token", "user_secret");
+    char* raidNamesFlat = flattenStringArray(twitterNames,
+            twitterNamesLength,
+            ",");
+    char* twitFilter = (char*)malloc(sizeof("track=") +
+            stringSize(raidNamesFlat));
+    strcpy(twitFilter, "track=");
+    strcat(twitFilter, raidNamesFlat);
 
-    curl = curl_easy_init();
-    if(curl){
-        curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
-        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-        res = curl_easy_perform(curl);
-        if(res != CURLE_OK)
-            printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+    ttwytter_request("POST",
+            "https://stream.twitter.com/1.1/statuses/filter.json",
+            twitFilter);
 
-        curl_easy_cleanup(curl);
-    }
-
-
-
+    // Wait until the twitter thread is established
+    // Otherwise, things get screwy
+    while(!twitConnectionInitialized);
+    
     // Initialize the library
     printf("Initializing GLFW lib\n");
     if (!glfwInit())
         return -1;
 
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-
 
     // Create a windowed mode window and its OpenGL context
     printf("Initializing GLFW window\n");
@@ -261,6 +240,148 @@ void drawMainMenu(GLuint* prog, int width, int height){
 
 }
 
+const char *ttwytter_request(const char *http_method, const char *url,
+        const char *url_enc_args){
+
+    struct curl_slist *slist = NULL;
+    struct curlArgs pthreadArgs;
+    const char *consumer_key = 
+        "u0F80FdfqkskJPj43N8qzDi6w";
+    const char *consumer_secret = 
+        "EQovmAAo5MQIuHy0MvXNL6vJdF5j34DrcCw1lWxUKVIooSjU5g";
+    const char *user_token = 
+        "2784168906-L6G5msk0FCu5SbPcajGirYaUiEQFFm15ToehdSB";
+    const char *user_secret = 
+        "ocfwu7wSfDAWB5mja5IqaFdiGx7y20PEYNET6yCHkozUr";
+
+    char *ser_url, **argv, *auth_params,
+         auth_header[1024], *non_auth_params, *final_url, *temp_url;
+    int argc;
+    pthread_t tid[1];
+
+    ser_url = (char*)malloc(strlen(url) + strlen(url_enc_args) + 2);
+    sprintf(ser_url, "%s?%s", url, url_enc_args);
+
+    argv = (char**)malloc(0);
+    argc = oauth_split_url_parameters(ser_url, &argv);
+    free(ser_url);
+
+    temp_url = oauth_sign_array2(&argc,
+            &argv,
+            NULL,
+            OA_HMAC,
+            http_method,
+            consumer_key,
+            consumer_secret,
+            user_token,
+            user_secret);
+    free(temp_url);
+
+    auth_params = oauth_serialize_url_sep(argc, 1, argv, ", ", 6);
+    sprintf(auth_header, "Authorization: OAuth %s", auth_params);
+    slist = curl_slist_append(slist, auth_header);
+    free(auth_params);
+
+    non_auth_params = oauth_serialize_url_sep(argc, 1, argv, "", 1);
+
+    final_url = (char*)malloc(strlen(url) + strlen(non_auth_params));
+
+    strcpy(final_url, url);
+    char *postData = non_auth_params;
+
+    for (int i = 0; i < argc; i++ ){
+        free(argv[i]);   
+    }
+    free(argv);
+
+    curl_global_init(CURL_GLOBAL_ALL);
+
+    pthreadArgs.arg1 = url;
+    pthreadArgs.arg2 = slist;
+    pthreadArgs.arg3 = postData;
+
+    int pthreadError;
+    pthreadError = pthread_create(&tid[0],
+            NULL,
+            initTwitterConnection,
+            (void*)&pthreadArgs);
+
+    if(pthreadError != 0) printf("Problem creating thread");
+
+    return "a";
+}
+
+
+static void *initTwitterConnection(void *arguments){
+    struct curlArgs *twitArgs = (curlArgs*)arguments;
+    CURL *curl;
+
+    const char* url = twitArgs->arg1;
+    curl_slist* slist = twitArgs->arg2;
+    char* postData = twitArgs->arg3;
+
+    // CURL Data loaded into thread. Main thread can now continue
+    twitConnectionInitialized = 1;
+
+    curl = curl_easy_init();
+
+    CURLcode curlError;
+
+    printf("CURL URL: %s\n", url);
+
+    printf("Setting CURLOPT_URL\t\t");
+    curlError = curl_easy_setopt(curl, CURLOPT_URL, url);
+    curlPrintError(curlError);
+
+    printf("Setting CURLOPT_USERAGENT\t");
+    curlError = curl_easy_setopt(curl, CURLOPT_USERAGENT, "dummy-string");
+    curlPrintError(curlError);
+
+    printf("Setting CURLOPT_HTTPHEADER\t");
+    curlError = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
+    curlPrintError(curlError);
+
+    printf("Setting CURLOPT_POST\t\t");
+    curlError = curl_easy_setopt(curl, CURLOPT_POST, 1);
+    curlPrintError(curlError);
+
+    printf("Setting CURLOPT_POSTFIELDS\t");
+    curlError = curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postData);
+    curlPrintError(curlError);
+
+    printf("Nulling SSL Peer Verification\t");
+    curlError = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
+    curlPrintError(curlError);
+
+    printf("Nulling SSL Host Verification\t");
+    curlError = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
+    curlPrintError(curlError);
+
+    printf("Setting CURL callback func\t");
+    curlError = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curlPrintError(curlError);
+
+    printf("Executing CURL req\t\t");
+    curlPrintError(curl_easy_perform(curl)); /* Execute the request! */
+
+    curl_easy_cleanup(curl);
+
+    return NULL;
+}
+
+static size_t write_callback(void *ptr, size_t size,
+        size_t nmemb, void *userdata){
+
+    size_t realSize = size * nmemb;
+
+    char* data = (char*)malloc(realSize+1); // +1 for NULL ending
+    strcpy(data, (char*)ptr);
+
+    printf("*** We read %u bytes from file\n", realSize);
+    //printf("%s\n\n", data);
+    return realSize;
+}
+
 void renderText(GLuint* prog, const char* text, GLfloat x, GLfloat y,
         unsigned int selectedFont, unsigned int fontSizeIndex, float* color){
 
@@ -395,7 +516,7 @@ static int genFontTextures(){
 
 void texDump(GLuint* texID, int W, int H) {
     char fileName[100];
-    
+
     if(snprintf(fileName, 100, "tex-%u.tga", *texID) < 0){
         printf("Program writing name for tex dump\n");
         return;
@@ -414,7 +535,7 @@ void texDump(GLuint* texID, int W, int H) {
     //        GL_RED_INTEGER,
     //        GL_UNSIGNED_BYTE,
     //        pixel_data);
-            
+
     //glReadBuffer(GL_FRONT);
     //glReadPixels(0, 0, W, H, GL_BGRA, GL_UNSIGNED_BYTE, pixel_data);
 
@@ -463,6 +584,46 @@ void setProjectionMatrix(GLuint *prog, int screen_width, int screen_height){
     }
     else printf("Can't get projection uniform location\n");
 
+}
+
+static char* flattenStringArray(const char** strArray,
+        size_t nElements, const char* sep){
+
+    char* retString;
+    const char* dummy = "";
+    size_t strArraySize = 0;
+    
+    // Count total size of input array
+    for(unsigned int i = 0; i < nElements; i++)
+        strArraySize += strlen(strArray[i]);
+
+    // Allocate space for return string
+    retString = (char*)malloc(strArraySize + // Space for all the names
+            (nElements-1)*sizeof(char) + // Space for the seperator
+            3); // Space for null termination + 2 " characters
+
+    // Initialize return string w/ first value
+    strcpy(retString, "\"");
+    strcat(retString, strArray[0]);
+
+    // Loop through input array outputting them into return value
+    for(size_t i = 1; i < nElements; i++){
+        // Get number of characters to write into return string
+        size_t nChars = snprintf((char*)dummy, 0, "%s,%s",
+                retString, (char*)strArray[i]);
+        // Actually write into return string
+        snprintf(retString, nChars+1, "%s%s%s", retString,
+                (char*)sep, (char*)strArray[i]);
+    }
+
+    strcat(retString, "\"");
+    return retString;
+}
+
+static size_t stringSize(const char* ary){
+    size_t flatSize = 0;
+    while(ary[flatSize] != '\0') ++flatSize;
+    return flatSize;
 }
 
 static void key_pressed(GLFWwindow* window, int key, int scancode,
@@ -532,15 +693,186 @@ void setFontColor(float* colorVar, int colorChoice){
 
 void glPrintError(GLenum error){
     if(error == GL_NO_ERROR)
-		printf("OpenGL Error: GL_NO_ERROR\n");
+        printf("OpenGL Error: GL_NO_ERROR\n");
     else if(error == GL_INVALID_ENUM)
-		printf("OpenGL Error: GL_INVALID_ENUM\n");
+        printf("OpenGL Error: GL_INVALID_ENUM\n");
     else if(error == GL_INVALID_VALUE)
-		printf("OpenGL Error: GL_INVALID_VALUE\n");
+        printf("OpenGL Error: GL_INVALID_VALUE\n");
     else if(error == GL_INVALID_OPERATION)
-		printf("OpenGL Error: GL_INVALID_OPERATION\n");
+        printf("OpenGL Error: GL_INVALID_OPERATION\n");
     else if(error == GL_INVALID_FRAMEBUFFER_OPERATION)
-		printf("OpenGL Error: GL_INVALID_FRAMEBUFFER_OPERATION\n");
+        printf("OpenGL Error: GL_INVALID_FRAMEBUFFER_OPERATION\n");
     else if(error == GL_OUT_OF_MEMORY)
-		printf("OpenGL Error: GL_OUT_OF_MEMORY\n");
+        printf("OpenGL Error: GL_OUT_OF_MEMORY\n");
+}
+
+void curlPrintError(CURLcode curlstatus){
+    if(curlstatus == CURLE_OK)
+        printf("CURLE_OK\n");
+    else if(curlstatus == CURLE_UNSUPPORTED_PROTOCOL)
+        printf("CURLE_UNSUPPORTED_PROTOCOL\n");
+    else if(curlstatus == CURLE_FAILED_INIT)
+        printf("CURLE_FAILED_INIT\n");
+    else if(curlstatus == CURLE_URL_MALFORMAT)
+        printf("CURLE_URL_MALFORMAT\n");
+    else if(curlstatus == CURLE_NOT_BUILT_IN)
+        printf("CURLE_NOT_BUILT_IN\n");
+    else if(curlstatus == CURLE_COULDNT_RESOLVE_PROXY)
+        printf("CURLE_COULDNT_RESOLVE_PROXY\n");
+    else if(curlstatus == CURLE_COULDNT_RESOLVE_HOST)
+        printf("CURLE_COULDNT_RESOLVE_HOST\n");
+    else if(curlstatus == CURLE_COULDNT_CONNECT)
+        printf("CURLE_COULDNT_CONNECT\n");
+    else if(curlstatus == CURLE_FTP_WEIRD_SERVER_REPLY)
+        printf("CURLE_FTP_WEIRD_SERVER_REPLY\n");
+    else if(curlstatus == CURLE_REMOTE_ACCESS_DENIED)
+        printf("CURLE_REMOTE_ACCESS_DENIED\n");
+    else if(curlstatus == CURLE_FTP_ACCEPT_FAILED)
+        printf("CURLE_FTP_ACCEPT_FAILED\n");
+    else if(curlstatus == CURLE_FTP_WEIRD_PASS_REPLY)
+        printf("CURLE_FTP_WEIRD_PASS_REPLY\n");
+    else if(curlstatus == CURLE_FTP_ACCEPT_TIMEOUT)
+        printf("CURLE_FTP_ACCEPT_TIMEOUT\n");
+    else if(curlstatus == CURLE_FTP_WEIRD_PASV_REPLY)
+        printf("CURLE_FTP_WEIRD_PASV_REPLY\n");
+    else if(curlstatus == CURLE_FTP_WEIRD_227_FORMAT)
+        printf("CURLE_FTP_WEIRD_227_FORMAT\n");
+    else if(curlstatus == CURLE_FTP_CANT_GET_HOST)
+        printf("CURLE_FTP_CANT_GET_HOST\n");
+    else if(curlstatus == CURLE_HTTP2)
+        printf("CURLE_HTTP2\n");
+    else if(curlstatus == CURLE_FTP_COULDNT_SET_TYPE)
+        printf("CURLE_FTP_COULDNT_SET_TYPE\n");
+    else if(curlstatus == CURLE_PARTIAL_FILE)
+        printf("CURLE_PARTIAL_FILE\n");
+    else if(curlstatus == CURLE_FTP_COULDNT_RETR_FILE)
+        printf("CURLE_FTP_COULDNT_RETR_FILE\n");
+    else if(curlstatus == CURLE_QUOTE_ERROR)
+        printf("CURLE_QUOTE_ERROR\n");
+    else if(curlstatus == CURLE_HTTP_RETURNED_ERROR)
+        printf("CURLE_HTTP_RETURNED_ERROR\n");
+    else if(curlstatus == CURLE_WRITE_ERROR)
+        printf("CURLE_WRITE_ERROR\n");
+    else if(curlstatus == CURLE_UPLOAD_FAILED)
+        printf("CURLE_UPLOAD_FAILED\n");
+    else if(curlstatus == CURLE_READ_ERROR)
+        printf("CURLE_READ_ERROR\n");
+    else if(curlstatus == CURLE_OUT_OF_MEMORY)
+        printf("CURLE_OUT_OF_MEMORY\n");
+    else if(curlstatus == CURLE_OPERATION_TIMEDOUT)
+        printf("CURLE_OPERATION_TIMEDOUT\n");
+    else if(curlstatus == CURLE_FTP_PORT_FAILED)
+        printf("CURLE_FTP_PORT_FAILED\n");
+    else if(curlstatus == CURLE_FTP_COULDNT_USE_REST)
+        printf("CURLE_FTP_COULDNT_USE_REST\n");
+    else if(curlstatus == CURLE_RANGE_ERROR)
+        printf("CURLE_RANGE_ERROR\n");
+    else if(curlstatus == CURLE_HTTP_POST_ERROR)
+        printf("CURLE_HTTP_POST_ERROR\n");
+    else if(curlstatus == CURLE_SSL_CONNECT_ERROR)
+        printf("CURLE_SSL_CONNECT_ERROR\n");
+    else if(curlstatus == CURLE_BAD_DOWNLOAD_RESUME)
+        printf("CURLE_BAD_DOWNLOAD_RESUME\n");
+    else if(curlstatus == CURLE_FILE_COULDNT_READ_FILE)
+        printf("CURLE_FILE_COULDNT_READ_FILE\n");
+    else if(curlstatus == CURLE_LDAP_CANNOT_BIND)
+        printf("CURLE_LDAP_CANNOT_BIND\n");
+    else if(curlstatus == CURLE_LDAP_SEARCH_FAILED)
+        printf("CURLE_LDAP_SEARCH_FAILED\n");
+    else if(curlstatus == CURLE_FUNCTION_NOT_FOUND)
+        printf("CURLE_FUNCTION_NOT_FOUND\n");
+    else if(curlstatus == CURLE_ABORTED_BY_CALLBACK)
+        printf("CURLE_ABORTED_BY_CALLBACK\n");
+    else if(curlstatus == CURLE_BAD_FUNCTION_ARGUMENT)
+        printf("CURLE_BAD_FUNCTION_ARGUMENT\n");
+    else if(curlstatus == CURLE_INTERFACE_FAILED)
+        printf("CURLE_INTERFACE_FAILED\n");
+    else if(curlstatus == CURLE_TOO_MANY_REDIRECTS)
+        printf("CURLE_TOO_MANY_REDIRECTS\n");
+    else if(curlstatus == CURLE_UNKNOWN_OPTION)
+        printf("CURLE_UNKNOWN_OPTION\n");
+    else if(curlstatus == CURLE_TELNET_OPTION_SYNTAX)
+        printf("CURLE_TELNET_OPTION_SYNTAX\n");
+    else if(curlstatus == CURLE_PEER_FAILED_VERIFICATION)
+        printf("CURLE_PEER_FAILED_VERIFICATION\n");
+    else if(curlstatus == CURLE_GOT_NOTHING)
+        printf("CURLE_GOT_NOTHING\n");
+    else if(curlstatus == CURLE_SSL_ENGINE_NOTFOUND)
+        printf("CURLE_SSL_ENGINE_NOTFOUND\n");
+    else if(curlstatus == CURLE_SSL_ENGINE_SETFAILED)
+        printf("CURLE_SSL_ENGINE_SETFAILED\n");
+    else if(curlstatus == CURLE_SEND_ERROR)
+        printf("CURLE_SEND_ERROR\n");
+    else if(curlstatus == CURLE_RECV_ERROR)
+        printf("CURLE_RECV_ERROR\n");
+    else if(curlstatus == CURLE_SSL_CERTPROBLEM)
+        printf("CURLE_SSL_CERTPROBLEM\n");
+    else if(curlstatus == CURLE_SSL_CIPHER)
+        printf("CURLE_SSL_CIPHER\n");
+    else if(curlstatus == CURLE_SSL_CACERT)
+        printf("CURLE_SSL_CACERT\n");
+    else if(curlstatus == CURLE_BAD_CONTENT_ENCODING)
+        printf("CURLE_BAD_CONTENT_ENCODING\n");
+    else if(curlstatus == CURLE_LDAP_INVALID_URL)
+        printf("CURLE_LDAP_INVALID_URL\n");
+    else if(curlstatus == CURLE_FILESIZE_EXCEEDED)
+        printf("CURLE_FILESIZE_EXCEEDED\n");
+    else if(curlstatus == CURLE_USE_SSL_FAILED)
+        printf("CURLE_USE_SSL_FAILED\n");
+    else if(curlstatus == CURLE_SEND_FAIL_REWIND)
+        printf("CURLE_SEND_FAIL_REWIND\n");
+    else if(curlstatus == CURLE_SSL_ENGINE_INITFAILED)
+        printf("CURLE_SSL_ENGINE_INITFAILED\n");
+    else if(curlstatus == CURLE_LOGIN_DENIED)
+        printf("CURLE_LOGIN_DENIED\n");
+    else if(curlstatus == CURLE_TFTP_NOTFOUND)
+        printf("CURLE_TFTP_NOTFOUND\n");
+    else if(curlstatus == CURLE_TFTP_PERM)
+        printf("CURLE_TFTP_PERM\n");
+    else if(curlstatus == CURLE_REMOTE_DISK_FULL)
+        printf("CURLE_REMOTE_DISK_FULL\n");
+    else if(curlstatus == CURLE_TFTP_ILLEGAL)
+        printf("CURLE_TFTP_ILLEGAL\n");
+    else if(curlstatus == CURLE_TFTP_UNKNOWNID)
+        printf("CURLE_TFTP_UNKNOWNID\n");
+    else if(curlstatus == CURLE_REMOTE_FILE_EXISTS)
+        printf("CURLE_REMOTE_FILE_EXISTS\n");
+    else if(curlstatus == CURLE_TFTP_NOSUCHUSER)
+        printf("CURLE_TFTP_NOSUCHUSER\n");
+    else if(curlstatus == CURLE_CONV_FAILED)
+        printf("CURLE_CONV_FAILED\n");
+    else if(curlstatus == CURLE_CONV_REQD)
+        printf("CURLE_CONV_REQD\n");
+    else if(curlstatus == CURLE_SSL_CACERT_BADFILE)
+        printf("CURLE_SSL_CACERT_BADFILE\n");
+    else if(curlstatus == CURLE_REMOTE_FILE_NOT_FOUND)
+        printf("CURLE_REMOTE_FILE_NOT_FOUND\n");
+    else if(curlstatus == CURLE_SSH)
+        printf("CURLE_SSH\n");
+    else if(curlstatus == CURLE_SSL_SHUTDOWN_FAILED)
+        printf("CURLE_SSL_SHUTDOWN_FAILED\n");
+    else if(curlstatus == CURLE_AGAIN)
+        printf("CURLE_AGAIN\n");
+    else if(curlstatus == CURLE_SSL_CRL_BADFILE)
+        printf("CURLE_SSL_CRL_BADFILE\n");
+    else if(curlstatus == CURLE_SSL_ISSUER_ERROR)
+        printf("CURLE_SSL_ISSUER_ERROR\n");
+    else if(curlstatus == CURLE_FTP_PRET_FAILED)
+        printf("CURLE_FTP_PRET_FAILED\n");
+    else if(curlstatus == CURLE_RTSP_CSEQ_ERROR)
+        printf("CURLE_RTSP_CSEQ_ERROR\n");
+    else if(curlstatus == CURLE_RTSP_SESSION_ERROR)
+        printf("CURLE_RTSP_SESSION_ERROR\n");
+    else if(curlstatus == CURLE_FTP_BAD_FILE_LIST)
+        printf("CURLE_FTP_BAD_FILE_LIST\n");
+    else if(curlstatus == CURLE_CHUNK_FAILED)
+        printf("CURLE_CHUNK_FAILED\n");
+    else if(curlstatus == CURLE_NO_CONNECTION_AVAILABLE)
+        printf("CURLE_NO_CONNECTION_AVAILABLE\n");
+    else if(curlstatus == CURLE_SSL_PINNEDPUBKEYNOTMATCH)
+        printf("CURLE_SSL_PINNEDPUBKEYNOTMATCH\n");
+    else if(curlstatus == CURLE_SSL_INVALIDCERTSTATUS)
+        printf("CURLE_SSL_INVALIDCERTSTATUS\n");
+    else if(curlstatus == CURLE_HTTP2_STREAM)
+        printf("CURLE_HTTP2_STREAM\n");
 }

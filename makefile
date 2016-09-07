@@ -8,7 +8,7 @@ SRCDIR=./src
 OBJDIR=./obj
 LIBDIR=./lib
 
-LIBS=-lm -lfreetype.dll -lglfw3dll -lopengl32 -lcrypto -lgdi32 -lcurldll -loauth
+LIBS=-lm -lfreetype.dll -lglfw3dll -lopengl32 -lcrypto -lgdi32 -lcurldll -loauth -pthread
 
 _DEPS=Window.h gl_core_3_3.h ft2build.h
 DEPS=$(patsubst %,$(INCDIR)/%,$(_DEPS))

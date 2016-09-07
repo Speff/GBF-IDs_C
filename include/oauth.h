@@ -240,7 +240,7 @@ char *oauth_serialize_url (int argc, int start, char **argv);
  *   4: double quotation marks are added around values (use with sep ", " for HTTP Authorization header).
  * @return url string needs to be freed by the caller.
  */
-char *oauth_serialize_url_sep (int argc, int start, char **argv, char *sep, int mod);
+char *oauth_serialize_url_sep (int argc, int start, char **argv, const char *sep, int mod);
 
 /**
  * build a query parameter string from an array.
@@ -281,7 +281,7 @@ int oauth_cmpstringp(const void *p1, const void *p2);
  *
  * @return FALSE (0) if array does not contain a parameter with given key, TRUE (1) otherwise.
  */
-int oauth_param_exists(char **argv, int argc, char *key);
+int oauth_param_exists(char **argv, int argc, const char *key);
 
 /**
  * add query parameter to array

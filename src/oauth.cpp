@@ -430,7 +430,7 @@ char *oauth_serialize_url (int argc, int start, char **argv) {
  *   4: add double quotation marks around values (use with sep=", " to generate HTTP Authorization header).
  * @return url string needs to be freed by the caller.
  */
-char *oauth_serialize_url_sep (int argc, int start, char **argv, char *sep, int mod) {
+char *oauth_serialize_url_sep (int argc, int start, char **argv, const char *sep, int mod) {
   char  *tmp, *t1;
   int i;
   int first=1;
@@ -631,7 +631,7 @@ int oauth_cmpstringp(const void *p1, const void *p2) {
  *
  * @return FALSE (0) if array does not contain a parameter with given key, TRUE (1) otherwise.
  */
-int oauth_param_exists(char **argv, int argc, char *key) {
+int oauth_param_exists(char **argv, int argc, const char *key) {
   int i;
   size_t l= strlen(key);
   for (i=0;i<argc;i++)
@@ -770,7 +770,7 @@ void oauth_sign_array2_process (int *argcp, char***argvp,
   if (!http_method) {
     http_request_method = xstrdup(postargs?"POST":"GET");
   } else {
-    int i;
+    unsigned int i;
     http_request_method = xstrdup(http_method);
     for (i=0;i<strlen(http_request_method);i++) 
       http_request_method[i]=toupper(http_request_method[i]);
@@ -905,7 +905,8 @@ char *oauth_body_hash_encode(size_t len, unsigned char *digest) {
  * returns 0 (false) if strings are not equal, and 1 (true) if strings are equal.
  */
 int oauth_time_independent_equals_n(const char* a, const char* b, size_t len_a, size_t len_b) {
-  int diff, i, j;
+  int diff, j;
+	unsigned int i;
   if (a == NULL) return (b == NULL);
   else if (b == NULL) return 0;
   else if (len_b == 0) return (len_a == 0);
