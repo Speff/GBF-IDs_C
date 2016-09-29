@@ -30,6 +30,7 @@ void curlPrintError(CURLcode curlstatus);
 const char *ttwytter_request(const char*, const char*, const char*);
 static void *initTwitterConnection(void *);
 static size_t write_callback(void *, size_t, size_t, void *);
+char* findBoss(char*, size_t);
 
 struct Character {
     GLuint   TextureID;  // ID handle of the glyph texture

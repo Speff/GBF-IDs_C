@@ -379,7 +379,55 @@ static size_t write_callback(void *ptr, size_t size,
 
     printf("*** We read %u bytes from file\n", realSize);
     //printf("%s\n\n", data);
+    char* offset = strstr(data, "ID");
+    int jump;
+    if(offset != NULL){
+        char* ID = (char*)malloc(sizeof(char)*8 + 1);
+
+        printf("Character: %c\n", offset[2]);
+        if(offset[2] == ':') jump = 4;
+        else jump = 8;
+
+        strncpy(ID, offset+jump, 8);
+        ID[8] = '\0';
+        printf("ID: %s\n", ID);
+
+        findBoss(data, realSize);
+    }
     return realSize;
+}
+
+char* findBoss(char* jsonData, size_t jsonDataSize){
+    size_t actualDataSize = 0;
+    size_t dataIndex = 0;
+    char* retData = (char*)malloc(jsonDataSize);
+    char* unicodeString = (char*)malloc(sizeof(char)*4 + 1);
+
+    while(dataIndex < jsonDataSize){
+        if(jsonData[dataIndex] == '\\' && jsonData[dataIndex+1] == 'u'){
+            strncpy(unicodeString, jsonData+dataIndex+2, 4);
+            unicodeString[4] = '\0';
+
+            char unicodeCode[2];
+            unicodeCode[0] = (int)strtol(unicodeString, '\0', 16);
+            unicodeCode[1] = '\0';
+
+            //retData[actualDataSize] = utf8_char_to_ucs2((const unsigned char*)unicodeCode);
+            printf("Unicode string: %s\nUnicode point: %c\n\n", unicodeString, (char)12402);
+
+            actualDataSize++;
+            dataIndex += 6;
+        }
+        else{
+            retData[actualDataSize] = jsonData[dataIndex];
+            actualDataSize++;
+            dataIndex++;
+        }
+    }
+
+    printf("%s\n", retData);
+
+    return retData;
 }
 
 void renderText(GLuint* prog, const char* text, GLfloat x, GLfloat y,
