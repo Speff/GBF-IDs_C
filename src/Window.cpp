@@ -41,9 +41,17 @@ int main(void){
     int screen_width = 435;
     int screen_height = 480;
 
-    char* raidNamesFlat = flattenStringArray(twitterNames,
-            twitterNamesLength,
+    printf("Reading raid names from file\n");
+    unsigned int nRaidNames = 0;
+    char** raidNamesList = NULL;
+    raidNamesList = getRaidNames(&nRaidNames);
+
+    printf("Flattening raid names list\n");
+    char* raidNamesFlat = flattenStringArray(raidNamesList,
+            nRaidNames,
             ",");
+
+    printf("Constructing twitter filter\n");
     char* twitFilter = (char*)malloc(sizeof("track=") +
             stringSize(raidNamesFlat));
     strcpy(twitFilter, "track=");
@@ -56,7 +64,7 @@ int main(void){
     // Wait until the twitter thread is established
     // Otherwise, things get screwy
     while(!twitConnectionInitialized);
-    
+
     // Initialize the library
     printf("Initializing GLFW lib\n");
     if (!glfwInit())
@@ -378,7 +386,7 @@ static size_t write_callback(void *ptr, size_t size,
     strcpy(data, (char*)ptr);
 
     printf("*** We read %u bytes from file\n", realSize);
-    //printf("%s\n\n", data);
+    printf("%s\n\n", data);
     char* offset = strstr(data, "ID");
     int jump;
     if(offset != NULL){
@@ -402,18 +410,25 @@ char* findBoss(char* jsonData, size_t jsonDataSize){
     size_t dataIndex = 0;
     char* retData = (char*)malloc(jsonDataSize);
     char* unicodeString = (char*)malloc(sizeof(char)*4 + 1);
+    char* unicodeStringUpper = (char*)malloc(sizeof(char)*2 + 1);
+    char* unicodeStringLower = (char*)malloc(sizeof(char)*2 + 1);
 
     while(dataIndex < jsonDataSize){
         if(jsonData[dataIndex] == '\\' && jsonData[dataIndex+1] == 'u'){
             strncpy(unicodeString, jsonData+dataIndex+2, 4);
-            unicodeString[4] = '\0';
+            strncpy(unicodeStringUpper, unicodeString, 2);
+            strncpy(unicodeStringLower, unicodeString+2, 2);
+            unicodeStringUpper[2] = '\0';
+            unicodeStringLower[2] = '\0';
 
             char unicodeCode[2];
-            unicodeCode[0] = (int)strtol(unicodeString, '\0', 16);
-            unicodeCode[1] = '\0';
+            unicodeCode[1] = (int)strtol(unicodeStringUpper, NULL, 16);
+            unicodeCode[0] = (int)strtol(unicodeStringLower, NULL, 16);
+            //unicodeCode[1] = '\0';
 
             //retData[actualDataSize] = utf8_char_to_ucs2((const unsigned char*)unicodeCode);
-            printf("Unicode string: %s\nUnicode point: %c\n\n", unicodeString, (char)12402);
+            printf("Unicode string: %s\nUnicode point: %s%s\n\n", unicodeString,
+                    unicodeStringUpper, unicodeStringLower);
 
             actualDataSize++;
             dataIndex += 6;
@@ -428,6 +443,48 @@ char* findBoss(char* jsonData, size_t jsonDataSize){
     printf("%s\n", retData);
 
     return retData;
+}
+
+char** getRaidNames(unsigned int *nRaidNames){
+    char* fileRaidNamesFlat = NULL;
+    // Read raid Names from file
+    FILE *sourceFile = fopen("raidNames.txt", "r");
+    if(sourceFile == NULL) printf("Can't open names file\n");
+    else printf("Opened names file\n");
+    // Get file size
+    fseek(sourceFile, 0, SEEK_END);
+    size_t readSize = ftell(sourceFile);
+    // Allocate space for boss names
+    fileRaidNamesFlat = (char*)malloc(sizeof(char)*readSize + 2);
+    if(fileRaidNamesFlat == NULL) printf("Memory error - names.txt\n");
+    // Read file into source variable
+    rewind(sourceFile);
+    fread(fileRaidNamesFlat, 1, readSize, sourceFile);
+    //printf("%s\n", fileRaidNamesFlat);
+
+    unsigned int nNames = 0;
+    for(unsigned int i = 0; i < readSize; i++){
+        if(fileRaidNamesFlat[i] == '\n' || fileRaidNamesFlat[i] == ',')
+            nNames++;
+    }
+
+    char **twitNames;
+    twitNames = (char**)malloc(nNames * sizeof(char*));
+
+    char* pBossName = strtok(fileRaidNamesFlat, ",\n");
+    unsigned int twitNamesIndex = 0;
+    while(twitNamesIndex < nNames){
+        twitNames[twitNamesIndex] = pBossName;
+        twitNamesIndex++;
+        pBossName = strtok(NULL, ",\n");
+    }
+
+    printf("Number of names: %i\n", nNames);
+    for(unsigned int i = 0; i < nNames; i++)
+        printf("Number: %i\n\t%s\n", i, twitNames[i]);
+    
+    *nRaidNames = nNames;
+    return twitNames;
 }
 
 void renderText(GLuint* prog, const char* text, GLfloat x, GLfloat y,
@@ -634,7 +691,7 @@ void setProjectionMatrix(GLuint *prog, int screen_width, int screen_height){
 
 }
 
-static char* flattenStringArray(const char** strArray,
+static char* flattenStringArray(char** strArray,
         size_t nElements, const char* sep){
 
     char* retString;

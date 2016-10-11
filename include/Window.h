@@ -22,7 +22,8 @@ void drawMainMenu(GLuint*, int, int);
 void renderText(GLuint*, const char*, GLfloat, GLfloat, unsigned int, unsigned int, float*);
 static int genFontTextures();
 void texDump(GLuint*, int, int);
-static char* flattenStringArray(const char**, size_t, const char*);
+char** getRaidNames(unsigned int*);
+static char* flattenStringArray(char**, size_t, const char*);
 static size_t stringSize(const char*);
 void setFontColor(float*, int);
 void glPrintError(GLenum);
@@ -58,23 +59,23 @@ const int raidNamesLength = 14;
 const char *raidShortcuts[raidNamesLength] = {
     "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N" };
 
-const char* twitterNames[] = {
-    "Lv50 ティアマト・マグナ", "Lvl 50 Tiamat Omega",
-    "Lv60 ユグドラシル・マグナ", "Lvl 60 Yggdrasil Omega",
-    "Lv60 リヴァイアサン・マグナ", "Lvl 60 Leviathan Omega",
-    "Lv70 コロッサス・マグナ", "Lvl 70 Colossus Omega",
-    "Lv75 シュヴァリエ・マグナ", "Lvl 75 Luminiera Omega",
-    "Lv75 セレスト・マグナ", "Lvl 75 Celeste Omega",
-    "Lv100 ナタク", "Lvl 100 Nezha",
-    "Lv100 マキュラ・マリウス", "Lvl 100 Macula Marius",
-    "Lv100 アポロン", "Lvl 100 Apollo",
-    "Lv100 Dエンジェル・オリヴィエ", "Lvl 100 Dark Angel Olivia",
-    "Lv100 メドゥーサ", "Lvl 100 Medusa",
-    "Lv100 フラム＝グラス", "Lvl 100 Twin Elements",
-    "Lv100 ジ・オーダー・グランデ", "Lvl 100 Grand Order",
-    "Lv100 プロトバハムート", "Lvl 100 Proto Bahamut"
-};
-const int twitterNamesLength = raidNamesLength*2;
+//const char* twitterNames[] = {
+//    "Lv50 ティアマト・マグナ", "Lvl 50 Tiamat Omega",
+//    "Lv60 ユグドラシル・マグナ", "Lvl 60 Yggdrasil Omega",
+//    "Lv60 リヴァイアサン・マグナ", "Lvl 60 Leviathan Omega",
+//    "Lv70 コロッサス・マグナ", "Lvl 70 Colossus Omega",
+//    "Lv75 シュヴァリエ・マグナ", "Lvl 75 Luminiera Omega",
+//    "Lv75 セレスト・マグナ", "Lvl 75 Celeste Omega",
+//    "Lv100 ナタク", "Lvl 100 Nezha",
+//    "Lv100 マキュラ・マリウス", "Lvl 100 Macula Marius",
+//    "Lv100 アポロン", "Lvl 100 Apollo",
+//    "Lv100 Dエンジェル・オリヴィエ", "Lvl 100 Dark Angel Olivia",
+//    "Lv100 メドゥーサ", "Lvl 100 Medusa",
+//    "Lv100 フラム＝グラス", "Lvl 100 Twin Elements",
+//    "Lv100 ジ・オーダー・グランデ", "Lvl 100 Grand Order",
+//    "Lv100 プロトバハムート", "Lvl 100 Proto Bahamut"
+//};
+//const int twitterNamesLength = raidNamesLength*2;
 
 struct curlArgs {
     const char* arg1; // url
