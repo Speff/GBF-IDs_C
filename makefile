@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-I$(INCDIR) -m32 -Wall -Wno-comment -O2 -static-libgcc -static-libstdc++
+CFLAGS=-I$(INCDIR) -m32 -Wall -Wno-comment -O2# -mwindows
 STATIC_FLAGS=
 
 INCDIR=./include
@@ -20,7 +20,7 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cpp $(DEPS)
 	$(CC) $(STATIC_FLAGS) -c -o $@ $< $(CFLAGS)
 
 GBF-IDs: $(OBJ)
-	$(CC) -o $(BINDIR)/$@ $^ $(INCDIR)/prog.res $(CFLAGS) -L$(LIBDIR) $(LIBS)
+	$(CC) -o $(BINDIR)/$@ $^ $(INCDIR)/progSettings.o $(CFLAGS) -L$(LIBDIR) $(LIBS)
 
 .PHONY: clean
 

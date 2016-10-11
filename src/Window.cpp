@@ -1,6 +1,7 @@
 #include <Window.h>
 
 volatile sig_atomic_t twitConnectionInitialized = 0;
+volatile sig_atomic_t autoCopy = 0;
 raidList fileRaidNames;
 GLuint VAO, VBO;
 GLuint program;
@@ -48,14 +49,55 @@ int main(void){
     //        (unsigned char)(codepointToUTF8(0x30cf)>>0));
 
     printf("Reading raid names from file\n");
-    fileRaidNames.displayList = (char**)malloc(0);
-    fileRaidNames.nDisplayElements = 0;
-    fileRaidNames.raidList = getRaidNames(&(fileRaidNames.nElements));
+    fileRaidNames.twitterOutputList = (char**)malloc(0);
+    fileRaidNames.nTwitterOutputList = 0;
+    fileRaidNames.raidNameList = getRaidNames(&(fileRaidNames.nRaidNameList));
+
+    fileRaidNames.nRaidNameLegend = fileRaidNames.nRaidNameList>>1;
+    fileRaidNames.raidNameLegend = (char**)malloc(sizeof(char*) * 
+            fileRaidNames.nRaidNameLegend);
+    fileRaidNames.legendShortcut = (char*)malloc(sizeof(char) *
+            fileRaidNames.nRaidNameLegend);
+    fileRaidNames.raidNameLegendOn = (int*)calloc(fileRaidNames.nRaidNameLegend,
+            sizeof(int));
+    for(unsigned int i = 1; i < fileRaidNames.nRaidNameList; i += 2){
+        size_t nameLen = 0;
+        unsigned int namePos = 0;
+        
+        while(fileRaidNames.raidNameList[i][nameLen] != '\0') ++nameLen;
+
+        while(fileRaidNames.raidNameList[i][namePos] != ' ') ++namePos;
+        ++namePos;
+        while(fileRaidNames.raidNameList[i][namePos] != ' ') ++namePos;
+        ++namePos;
+    
+        if(nameLen < namePos){
+            printf("Something's wrong with the raidNames.txt formatting\n");
+            printf("Expecting 2nd column to have format: \"Lvl xx Name\"\n");
+            break;
+        }
+
+        fileRaidNames.raidNameLegend[i>>1] = (char*)malloc(nameLen-namePos + 1);
+        strncpy(fileRaidNames.raidNameLegend[i>>1],
+                fileRaidNames.raidNameList[i] + namePos,
+                nameLen-namePos);
+        fileRaidNames.raidNameLegend[i>>1][nameLen-namePos] = '\0';
+
+        if((i>>1) < 26)
+            fileRaidNames.legendShortcut[i>>1] = 'A' + (i>>1);
+        else if((i>>1) < 52)
+            fileRaidNames.legendShortcut[i>>1] = 'a' + (i>>1) - 26;
+
+        //fileRaidNames.legendShortcut[i>>1] = 'A';
+
+        //fileRaidNames.raidNameLegend[i>>1] = fileRaidNames.raidNameList[i];
+    }
 
     printf("Flattening raid names list\n");
-    char* raidNamesFlat = flattenStringArray(fileRaidNames.raidList,
-            fileRaidNames.nElements,
+    char* raidNamesFlat = flattenStringArray(fileRaidNames.raidNameList,
+            fileRaidNames.nRaidNameList,
             ",");
+    printf("%s\n", raidNamesFlat);
 
     printf("Constructing twitter filter\n");
     char* twitFilter = (char*)malloc(sizeof("track=\"dummytxt,") +
@@ -221,6 +263,9 @@ void drawMainMenu(GLuint* prog, int width, int height){
     setFontColor(fontColor, 3);
     renderText(prog, "-3- Toggle Sound",
             selectLocX, selectLocY-40, 0, 2, fontColor);
+
+    if(autoCopy) setFontColor(fontColor, 0);
+    else setFontColor(fontColor, 3);
     renderText(prog, "-4- Toggle Auto-Copy",
             selectLocX, selectLocY-60, 0, 2, fontColor);
 
@@ -228,21 +273,25 @@ void drawMainMenu(GLuint* prog, int width, int height){
     int tableLocY = height - 105;
     int tableCheckCharacterLength = 25;
 
-    for(int i = 0; i < raidNamesLength; i++){
+    for(unsigned int i = 0; i < fileRaidNames.nRaidNameLegend; i++){
         char *raidShortcutDisplay = (char*)malloc(
                 2*strlen("(") + // Make space for parenthesis
-                strlen(raidShortcuts[i]) + // Make space for shortcut char
-                1); // Make space for null termination
+                sizeof(char) +  // Make space for shortcut char
+                1);             // Make space for null termination
         strcpy(raidShortcutDisplay, "-");
-        strcat(raidShortcutDisplay, raidShortcuts[i]);
+        char shortcutDisplay[2] = {fileRaidNames.legendShortcut[i], '\0'};
+        strcat(raidShortcutDisplay, shortcutDisplay);
         strcat(raidShortcutDisplay, "-");
 
-        setFontColor(fontColor, 3);
+        if(fileRaidNames.raidNameLegendOn[i])
+            setFontColor(fontColor, 0);
+        else
+            setFontColor(fontColor, 3);
         renderText(prog, raidShortcutDisplay, tableLocX, tableLocY - 20*i,
                 0, 2, fontColor);
 
-        setFontColor(fontColor, 0);
-        renderText(prog, raidNames[i], tableLocX + tableCheckCharacterLength,
+        renderText(prog, fileRaidNames.raidNameLegend[i],
+                tableLocX + tableCheckCharacterLength,
                 tableLocY - 20*i, 0, 2, fontColor);
 
         free(raidShortcutDisplay);
@@ -258,13 +307,16 @@ void drawMainMenu(GLuint* prog, int width, int height){
 
     int minDisplayElement = 0;
     unsigned int nElementsToDisplay = 8;
-    if(fileRaidNames.nDisplayElements > nElementsToDisplay)
-        minDisplayElement = fileRaidNames.nDisplayElements - nElementsToDisplay;
-    for(int i = fileRaidNames.nDisplayElements-1; i >= minDisplayElement; i--){
+    if(fileRaidNames.nTwitterOutputList > nElementsToDisplay)
+        minDisplayElement =
+            fileRaidNames.nTwitterOutputList - nElementsToDisplay;
+
+    for(int i = fileRaidNames.nTwitterOutputList-1;
+            i >= minDisplayElement; i--){
         setFontColor(fontColor, 0);
-        renderText(prog, fileRaidNames.displayList[i], raidListElemLocX,
+        renderText(prog, fileRaidNames.twitterOutputList[i], raidListElemLocX,
                 raidListElemLocY-listLineSizeY*
-                (fileRaidNames.nDisplayElements-i-1), 0, 4, fontColor);
+                (fileRaidNames.nTwitterOutputList-i-1), 0, 4, fontColor);
     }
 
 }
@@ -328,6 +380,7 @@ const char *ttwytter_request(const char *http_method, const char *url,
     pthreadArgs.arg1 = url;
     pthreadArgs.arg2 = slist;
     pthreadArgs.arg3 = postData;
+    pthreadArgs.arg4 = 30;
 
     int pthreadError;
     pthreadError = pthread_create(&tid[0],
@@ -345,9 +398,16 @@ static void *initTwitterConnection(void *arguments){
     struct curlArgs *twitArgs = (curlArgs*)arguments;
     CURL *curl;
 
-    const char* url = twitArgs->arg1;
-    curl_slist* slist = twitArgs->arg2;
-    char* postData = twitArgs->arg3;
+    struct curlArgs vtwitArgs;
+    vtwitArgs.arg1 = twitArgs->arg1;
+    vtwitArgs.arg2 = twitArgs->arg2;
+    vtwitArgs.arg3 = twitArgs->arg3;
+    vtwitArgs.arg4 = twitArgs->arg4;
+
+    const char* url         = vtwitArgs.arg1;
+    curl_slist* slist       = vtwitArgs.arg2;
+    char* postData          = vtwitArgs.arg3;
+    unsigned int retryDelay = vtwitArgs.arg4;
 
     // CURL Data loaded into thread. Main thread can now continue
     twitConnectionInitialized = 1;
@@ -357,6 +417,7 @@ static void *initTwitterConnection(void *arguments){
     CURLcode curlError;
 
     printf("CURL URL: %s\n", url);
+    printf("CURL TIMEOUT: %i seconds\n", retryDelay);
 
     printf("Setting CURLOPT_URL\t\t");
     curlError = curl_easy_setopt(curl, CURLOPT_URL, url);
@@ -390,10 +451,17 @@ static void *initTwitterConnection(void *arguments){
     curlError = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curlPrintError(curlError);
 
-    printf("Executing CURL req\t\t");
+    printf("Executing CURL req\t\t\n");
     curlPrintError(curl_easy_perform(curl)); /* Execute the request! */
 
     curl_easy_cleanup(curl);
+
+    printf("Twitter connection destroyed. Waiting %i seconds\n", retryDelay);
+    sleep(retryDelay);
+
+    vtwitArgs.arg4 = vtwitArgs.arg4 * 2;
+
+    initTwitterConnection((void*)&vtwitArgs);
 
     return NULL;
 }
@@ -407,11 +475,12 @@ static size_t write_callback(void *ptr, size_t size,
     strcpy(data, (char*)ptr);
 
     printf("*** We read %u bytes from file\n", realSize);
-    //printf("%s\n\n", data);
+    printf("%s\n\n", data);
     char* offset = strstr(data, "ID");
     int jump;
     if(offset != NULL){
         char* ID = (char*)malloc(sizeof(char)*8 + 1);
+        unsigned int validID = 1;
 
         //printf("Character: %c\n", offset[2]);
         if(offset[2] == ':') jump = 4;
@@ -419,9 +488,21 @@ static size_t write_callback(void *ptr, size_t size,
 
         strncpy(ID, offset+jump, 8);
         ID[8] = '\0';
-        printf("ID: %s\n", ID);
+        
+        for(unsigned int i = 0; i < 8; i++){
+            if((ID[i] >= 'A' && ID[i] <= 'F') ||
+                    (ID[i] >= '0' && ID[i] <= '9'));
+            else{
+                validID = 0;
+                printf("INVALID ID READ\n");
+                break;
+            }
+        }
 
-        findBoss(data, realSize, ID);
+        if(validID){
+            printf("ID: %s\n", ID);
+            findBoss(data, realSize, ID);
+        }
         free(ID);
     }
 
@@ -477,38 +558,48 @@ char* findBoss(char* jsonData, size_t jsonDataSize, char* ID){
     }
 
     unsigned int bossIndex = 0;
-    while(bossIndex < fileRaidNames.nElements){
-        if(strstr(retData, fileRaidNames.raidList[bossIndex]) != NULL){
+    while(bossIndex < fileRaidNames.nRaidNameList){
+        if(strstr(retData, fileRaidNames.raidNameList[bossIndex]) != NULL){
             if(bossIndex%2 != 1) bossIndex++;
-            printf("Boss: %s\n", fileRaidNames.raidList[bossIndex]);
+            printf("Boss: %s\n", fileRaidNames.raidNameList[bossIndex]);
             break;
         }
 
         bossIndex++;
     }
 
-    size_t bossNameLength = 0;
-    while(fileRaidNames.raidList[bossIndex][bossNameLength] != '\0')
-        bossNameLength++;
+    if(fileRaidNames.raidNameLegendOn[bossIndex>>1]){
+        size_t bossNameLength = 0;
+        while(fileRaidNames.raidNameList[bossIndex][bossNameLength] != '\0')
+            bossNameLength++;
 
-    const char* displayLineFormat = "ID: %s - %s";
-    size_t displayLineFormatSize = strlen(displayLineFormat) + bossNameLength +
-            8 + 1; // 8 = ID size, 1 for Null termination
-    displayLine = (char*)malloc(displayLineFormatSize); 
+        const char* displayLineFormat = "ID: %s - %s";
+        size_t displayLineFormatSize = strlen(displayLineFormat) +
+            bossNameLength + 8 + 1; // 8 = ID size, 1 for Null termination
+        displayLine = (char*)malloc(displayLineFormatSize); 
 
-    snprintf(displayLine, displayLineFormatSize, displayLineFormat,
-            ID, fileRaidNames.raidList[bossIndex]);
+        snprintf(displayLine, displayLineFormatSize, displayLineFormat,
+                ID, fileRaidNames.raidNameList[bossIndex]);
 
-    fileRaidNames.nDisplayElements++;
-    fileRaidNames.displayList = (char**)realloc(fileRaidNames.displayList,
-            fileRaidNames.nDisplayElements * sizeof(char*));
-    fileRaidNames.displayList[fileRaidNames.nDisplayElements-1] = displayLine;
+        if(autoCopy) setClipboard(ID, 9);
 
-    printf("%s\n", fileRaidNames.displayList[fileRaidNames.nDisplayElements-1]);
+        fileRaidNames.nTwitterOutputList++;
+        fileRaidNames.twitterOutputList = 
+            (char**)realloc(fileRaidNames.twitterOutputList,
+                    fileRaidNames.nTwitterOutputList * sizeof(char*));
+        fileRaidNames.twitterOutputList[fileRaidNames.nTwitterOutputList-1]
+            = displayLine;
+
+        printf("%s\n",
+                fileRaidNames.twitterOutputList[fileRaidNames.nTwitterOutputList
+                -1]);
+    }
 
     free(unicodeString);
     free(unicodeStringUpper);
     free(unicodeStringLower);
+
+    printf("%s\n", retData);
 
     free(retData);
     return (char*)NULL;
@@ -544,7 +635,7 @@ char** getRaidNames(unsigned int *nRaidNames){
     // Read file into source variable
     rewind(sourceFile);
     fread(fileRaidNamesFlat, 1, readSize, sourceFile);
-    //printf("%s\n", fileRaidNamesFlat);
+    printf("%s\n", fileRaidNamesFlat);
     //for(unsigned int i = 0; i < readSize; i++){
     //    printf("%c\t%x\n", fileRaidNamesFlat[i],
     //            (unsigned char)fileRaidNamesFlat[i]);
@@ -624,12 +715,21 @@ void renderText(GLuint* prog, const char* text, GLfloat x, GLfloat y,
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+void setClipboard(char* text, unsigned int len){
+    HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, len);
+    memcpy(GlobalLock(hMem), text, len);
+    GlobalUnlock(hMem);
+    OpenClipboard(0);
+    EmptyClipboard();
+    SetClipboardData(CF_TEXT, hMem);
+    CloseClipboard();
+}
+
 
 static int genFontTextures(){
     FT_Library fontLibrary;
     FT_Face fontFace;
     FT_Error error;
-
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
@@ -796,8 +896,8 @@ static char* flattenStringArray(char** strArray,
             3); // Space for null termination + 2 " characters
 
     // Initialize return string w/ first value
-    strcpy(retString, "");
-    strcat(retString, strArray[0]);
+    //strcpy(retString, "");
+    strcpy(retString, strArray[0]);
 
     // Loop through input array outputting them into return value
     for(size_t i = 1; i < nElements; i++){
@@ -823,6 +923,35 @@ static void key_pressed(GLFWwindow* window, int key, int scancode,
         int action,int mods){
     if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS){
         glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+    for(unsigned int i = 0; i < fileRaidNames.nRaidNameLegend; i++){
+        if(key == fileRaidNames.legendShortcut[i] && action == GLFW_PRESS){
+            printf("Key pressed: %c\n", key);
+
+            if(fileRaidNames.raidNameLegendOn[i]){
+                printf("Toggled Off\n");
+                fileRaidNames.raidNameLegendOn[i] = 0;
+            }
+            else{
+                printf("Toggled On\n");
+                fileRaidNames.raidNameLegendOn[i] = 1;
+            }
+        } 
+    }
+    if(key == '1' && action == GLFW_PRESS){
+        for(unsigned int i = 0; i < fileRaidNames.nRaidNameLegend; i++){
+            fileRaidNames.raidNameLegendOn[i] = 1;
+        }
+    }
+    if(key == '2' && action == GLFW_PRESS){
+        for(unsigned int i = 0; i < fileRaidNames.nRaidNameLegend; i++){
+            fileRaidNames.raidNameLegendOn[i] = 0;
+        }
+    }
+    if(key == '4' && action == GLFW_PRESS){
+        if(autoCopy) autoCopy = 0;
+        else autoCopy = 1;
+        printf("AutoCopy: %i\n", autoCopy);
     }
 }
 
