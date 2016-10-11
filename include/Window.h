@@ -23,6 +23,7 @@ void renderText(GLuint*, const char*, GLfloat, GLfloat, unsigned int, unsigned i
 static int genFontTextures();
 void texDump(GLuint*, int, int);
 char** getRaidNames(unsigned int*);
+uint32_t codepointToUTF8(uint16_t);
 static char* flattenStringArray(char**, size_t, const char*);
 static size_t stringSize(const char*);
 void setFontColor(float*, int);
@@ -31,13 +32,20 @@ void curlPrintError(CURLcode curlstatus);
 const char *ttwytter_request(const char*, const char*, const char*);
 static void *initTwitterConnection(void *);
 static size_t write_callback(void *, size_t, size_t, void *);
-char* findBoss(char*, size_t);
+char* findBoss(char*, size_t, char*);
 
 struct Character {
     GLuint   TextureID;  // ID handle of the glyph texture
     GLfloat  Size[2];    // Size of glyph
     GLfloat  Bearing[2]; // Offset from baseline to left/top of glyph
     GLuint   Advance;    // Offset to advance to next glyph
+};
+
+struct raidList {
+    char** raidList;
+    unsigned int nElements;
+    char** displayList;
+    unsigned int nDisplayElements;
 };
 
 const char* raidNames[] = {

@@ -1,6 +1,7 @@
 #include <Window.h>
 
 volatile sig_atomic_t twitConnectionInitialized = 0;
+raidList fileRaidNames;
 GLuint VAO, VBO;
 GLuint program;
 int fontSizes[] = {36, 18, 16, 15, 14};
@@ -38,25 +39,31 @@ void main()\n\
 
 int main(void){
     GLFWwindow* window;
-    int screen_width = 435;
+    int screen_width = 535;
     int screen_height = 480;
 
+    //printf("Convert 0x30cf = %2x%2x%2x\n", 
+    //        (unsigned char)(codepointToUTF8(0x30cf)>>16),
+    //        (unsigned char)(codepointToUTF8(0x30cf)>>8),
+    //        (unsigned char)(codepointToUTF8(0x30cf)>>0));
+
     printf("Reading raid names from file\n");
-    unsigned int nRaidNames = 0;
-    char** raidNamesList = NULL;
-    raidNamesList = getRaidNames(&nRaidNames);
+    fileRaidNames.displayList = (char**)malloc(0);
+    fileRaidNames.nDisplayElements = 0;
+    fileRaidNames.raidList = getRaidNames(&(fileRaidNames.nElements));
 
     printf("Flattening raid names list\n");
-    char* raidNamesFlat = flattenStringArray(raidNamesList,
-            nRaidNames,
+    char* raidNamesFlat = flattenStringArray(fileRaidNames.raidList,
+            fileRaidNames.nElements,
             ",");
 
     printf("Constructing twitter filter\n");
-    char* twitFilter = (char*)malloc(sizeof("track=") +
+    char* twitFilter = (char*)malloc(sizeof("track=\"dummytxt,") +
             stringSize(raidNamesFlat));
-    strcpy(twitFilter, "track=");
+    strcpy(twitFilter, "track=\"dummytxt,");
     strcat(twitFilter, raidNamesFlat);
 
+    printf("Twitter Request:\n%s\n", twitFilter);
     ttwytter_request("POST",
             "https://stream.twitter.com/1.1/statuses/filter.json",
             twitFilter);
@@ -243,8 +250,22 @@ void drawMainMenu(GLuint* prog, int width, int height){
 
     int raidListLocX = 200;
     int raidListLocY = height-105-5*20;
+    int raidListElemLocX = 210;
+    int raidListElemLocY = height-105-5*20-20;
+    int listLineSizeY = 19;
     setFontColor(fontColor, 0);
     renderText(prog, "Raid List:", raidListLocX, raidListLocY, 1, 2, fontColor);
+
+    int minDisplayElement = 0;
+    unsigned int nElementsToDisplay = 8;
+    if(fileRaidNames.nDisplayElements > nElementsToDisplay)
+        minDisplayElement = fileRaidNames.nDisplayElements - nElementsToDisplay;
+    for(int i = fileRaidNames.nDisplayElements-1; i >= minDisplayElement; i--){
+        setFontColor(fontColor, 0);
+        renderText(prog, fileRaidNames.displayList[i], raidListElemLocX,
+                raidListElemLocY-listLineSizeY*
+                (fileRaidNames.nDisplayElements-i-1), 0, 4, fontColor);
+    }
 
 }
 
@@ -386,13 +407,13 @@ static size_t write_callback(void *ptr, size_t size,
     strcpy(data, (char*)ptr);
 
     printf("*** We read %u bytes from file\n", realSize);
-    printf("%s\n\n", data);
+    //printf("%s\n\n", data);
     char* offset = strstr(data, "ID");
     int jump;
     if(offset != NULL){
         char* ID = (char*)malloc(sizeof(char)*8 + 1);
 
-        printf("Character: %c\n", offset[2]);
+        //printf("Character: %c\n", offset[2]);
         if(offset[2] == ':') jump = 4;
         else jump = 8;
 
@@ -400,15 +421,19 @@ static size_t write_callback(void *ptr, size_t size,
         ID[8] = '\0';
         printf("ID: %s\n", ID);
 
-        findBoss(data, realSize);
+        findBoss(data, realSize, ID);
+        free(ID);
     }
+
+    free(data);
     return realSize;
 }
 
-char* findBoss(char* jsonData, size_t jsonDataSize){
+char* findBoss(char* jsonData, size_t jsonDataSize, char* ID){
     size_t actualDataSize = 0;
     size_t dataIndex = 0;
     char* retData = (char*)malloc(jsonDataSize);
+    char* displayLine = NULL;
     char* unicodeString = (char*)malloc(sizeof(char)*4 + 1);
     char* unicodeStringUpper = (char*)malloc(sizeof(char)*2 + 1);
     char* unicodeStringLower = (char*)malloc(sizeof(char)*2 + 1);
@@ -421,28 +446,87 @@ char* findBoss(char* jsonData, size_t jsonDataSize){
             unicodeStringUpper[2] = '\0';
             unicodeStringLower[2] = '\0';
 
-            char unicodeCode[2];
-            unicodeCode[1] = (int)strtol(unicodeStringUpper, NULL, 16);
-            unicodeCode[0] = (int)strtol(unicodeStringLower, NULL, 16);
-            //unicodeCode[1] = '\0';
+            //char unicodeCode[2];
+            //unicodeCode[1] = (int)strtol(unicodeStringUpper, NULL, 16);
+            //unicodeCode[0] = (int)strtol(unicodeStringLower, NULL, 16);
+            uint16_t unicodeCode_16 = 
+                ((uint16_t)strtol(unicodeStringUpper, NULL, 16)<<8) | 
+                ((uint16_t)strtol(unicodeStringLower, NULL, 16)<<0);
 
-            //retData[actualDataSize] = utf8_char_to_ucs2((const unsigned char*)unicodeCode);
-            printf("Unicode string: %s\nUnicode point: %s%s\n\n", unicodeString,
-                    unicodeStringUpper, unicodeStringLower);
+            //printf("Unicode string: %s\nUnicode point: %s%s\n\n",
+            //        unicodeString, unicodeStringUpper, unicodeStringLower);
 
-            actualDataSize++;
-            dataIndex += 6;
+            retData[actualDataSize+0] = codepointToUTF8(unicodeCode_16)>>16;
+            retData[actualDataSize+1] = codepointToUTF8(unicodeCode_16)>>8;
+            retData[actualDataSize+2] = codepointToUTF8(unicodeCode_16);
+
+            //printf("Convert %2x%2x= %lx\n",
+            //        (unsigned char)unicodeCode[1],
+            //        (unsigned char)unicodeCode[0],
+            //        (unsigned long)codepointToUTF8(unicodeCode_16));
+
+            actualDataSize += 3; // Converted utf8 code adds 3 bytes
+            dataIndex += 6; // 6 bytes of rec text parsed
         }
         else{
+            //printf("%c\n", jsonData[dataIndex]);
             retData[actualDataSize] = jsonData[dataIndex];
             actualDataSize++;
             dataIndex++;
         }
     }
 
-    printf("%s\n", retData);
+    unsigned int bossIndex = 0;
+    while(bossIndex < fileRaidNames.nElements){
+        if(strstr(retData, fileRaidNames.raidList[bossIndex]) != NULL){
+            if(bossIndex%2 != 1) bossIndex++;
+            printf("Boss: %s\n", fileRaidNames.raidList[bossIndex]);
+            break;
+        }
 
-    return retData;
+        bossIndex++;
+    }
+
+    size_t bossNameLength = 0;
+    while(fileRaidNames.raidList[bossIndex][bossNameLength] != '\0')
+        bossNameLength++;
+
+    const char* displayLineFormat = "ID: %s - %s";
+    size_t displayLineFormatSize = strlen(displayLineFormat) + bossNameLength +
+            8 + 1; // 8 = ID size, 1 for Null termination
+    displayLine = (char*)malloc(displayLineFormatSize); 
+
+    snprintf(displayLine, displayLineFormatSize, displayLineFormat,
+            ID, fileRaidNames.raidList[bossIndex]);
+
+    fileRaidNames.nDisplayElements++;
+    fileRaidNames.displayList = (char**)realloc(fileRaidNames.displayList,
+            fileRaidNames.nDisplayElements * sizeof(char*));
+    fileRaidNames.displayList[fileRaidNames.nDisplayElements-1] = displayLine;
+
+    printf("%s\n", fileRaidNames.displayList[fileRaidNames.nDisplayElements-1]);
+
+    free(unicodeString);
+    free(unicodeStringUpper);
+    free(unicodeStringLower);
+
+    free(retData);
+    return (char*)NULL;
+}
+
+uint32_t codepointToUTF8(uint16_t codepoint){
+    uint32_t output   = 0x000000;
+    uint16_t lowMask  = 0b0000000000111111;
+    uint16_t midMask  = 0b0000111111000000;
+    uint16_t highMask = 0b1111000000000000;
+
+    //printf("Test: %x\n", (0b11100000 | (codepoint & highMask)>>12));
+
+    output = (0b10000000 | (codepoint & lowMask)) |
+             (0b10000000 | (codepoint & midMask)>>6)<<8 |
+             (0b11100000 | (codepoint & highMask)>>12)<<16;
+
+    return output;
 }
 
 char** getRaidNames(unsigned int *nRaidNames){
@@ -461,6 +545,10 @@ char** getRaidNames(unsigned int *nRaidNames){
     rewind(sourceFile);
     fread(fileRaidNamesFlat, 1, readSize, sourceFile);
     //printf("%s\n", fileRaidNamesFlat);
+    //for(unsigned int i = 0; i < readSize; i++){
+    //    printf("%c\t%x\n", fileRaidNamesFlat[i],
+    //            (unsigned char)fileRaidNamesFlat[i]);
+    //}
 
     unsigned int nNames = 0;
     for(unsigned int i = 0; i < readSize; i++){
@@ -479,9 +567,9 @@ char** getRaidNames(unsigned int *nRaidNames){
         pBossName = strtok(NULL, ",\n");
     }
 
-    printf("Number of names: %i\n", nNames);
-    for(unsigned int i = 0; i < nNames; i++)
-        printf("Number: %i\n\t%s\n", i, twitNames[i]);
+    //printf("Number of names: %i\n", nNames);
+    //for(unsigned int i = 0; i < nNames; i++)
+    //    printf("Number: %i\n\t%s\n", i, twitNames[i]);
     
     *nRaidNames = nNames;
     return twitNames;
@@ -708,7 +796,7 @@ static char* flattenStringArray(char** strArray,
             3); // Space for null termination + 2 " characters
 
     // Initialize return string w/ first value
-    strcpy(retString, "\"");
+    strcpy(retString, "");
     strcat(retString, strArray[0]);
 
     // Loop through input array outputting them into return value
