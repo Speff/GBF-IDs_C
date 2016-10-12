@@ -8,7 +8,8 @@ SRCDIR=./src
 OBJDIR=./obj
 LIBDIR=./lib
 
-LIBS=-lm -lfreetype.dll -lglfw3dll -lopengl32 -lcrypto -lgdi32 -lcurldll -loauth -pthread
+# Things on the left have dependencies fulfiled by things on the right
+LIBS=-static -static-libgcc -static-libstdc++ -lm -lcrypto -lgdi32 -loauth -lcurldll -lSOIL -lglfw3dll -lopengl32 -lfreetype.dll
 
 _DEPS=Window.h gl_core_3_3.h ft2build.h
 DEPS=$(patsubst %,$(INCDIR)/%,$(_DEPS))

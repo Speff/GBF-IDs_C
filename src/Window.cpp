@@ -131,14 +131,6 @@ int main(void){
         return -1;
     }
 
-    //GLFWimage images[1];
-    //unsigned int iconSizeX, iconSizeY;
-    //FILE *fp = fopen("ParticleT.png", "r");
-    //png_rgba_load(fp, &iconSizeX, &iconSizeY, &(images[0].pixels));
-    //images[0].width = (int)iconSizeX;
-    //images[0].height = (int)iconSizeY;
-    //glfwSetWindowIcon(window, 1, images);
-
     glViewport(0, 0, screen_width, screen_height);
 
     // Make the window's context current
@@ -214,11 +206,26 @@ int main(void){
         return -1;
     }
 
+    // load an image file directly as a new OpenGL texture
+    GLuint bgTex = SOIL_load_OGL_texture(
+         "naru.png",
+         SOIL_LOAD_AUTO,
+         SOIL_CREATE_NEW_ID,
+         SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+        );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // check for an error during the load process
+    if(0 == bgTex)
+        printf("SOIL loading error: '%s'\n", SOIL_last_result());
+    else printf("Background img loaded sucessfully\n");
+
     // Loop until the user closes the window
     printf("Starting main GLFW Loop\n");
     while (!glfwWindowShouldClose(window)){
         // Render here
-        glClearColor(0.95f, 0.95f, 0.95f, 1.0f);
+        glClearColor(0.92f, 0.92f, 0.92f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         glfwGetFramebufferSize(window, &screen_width, &screen_height);
         glViewport(0, 0, screen_width, screen_height);
@@ -226,7 +233,7 @@ int main(void){
         //setFontColor(fontColor, 1);
         //renderText(&program, text, 20.0f, 200.0f, 0.7f, fontColor);
 
-        drawMainMenu(&program, screen_width, screen_height);
+        drawMainMenu(&program, screen_width, screen_height, bgTex);
         //printf("Timer: %f\n", glfwGetTime());
 
         // Swap front and back buffers
@@ -240,10 +247,36 @@ int main(void){
     return 0;
 }
 
-void drawMainMenu(GLuint* prog, int width, int height){
+void drawMainMenu(GLuint* prog, int width, int height, GLuint bgTex){
     // FONTSIZE_BASE = 36PX
     float fontColor[3];
 
+    // Draw background image
+    glUniform3f(glGetUniformLocation(program, "textColor"), 1.0, 1.0, 1.0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindVertexArray(VAO);
+
+    GLfloat bgVerts[6][4] = {
+        { 0              , (GLfloat)height , 0.0 , 0.0 } ,
+        { 0              , 0               , 0.0 , 1.0 } ,
+        { (GLfloat)width , 0               , 1.0 , 1.0 } ,
+
+        { 0              , (GLfloat)height , 0.0 , 0.0 } ,
+        { (GLfloat)width , 0               , 1.0 , 1.0 } ,
+        { (GLfloat)width , (GLfloat)height , 1.0 , 0.0 }
+    };
+    glBindTexture(GL_TEXTURE_2D, bgTex);
+    // Update content of VBO memory
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(bgVerts), bgVerts);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    // Render quad
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    // Release hold
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Draw text data
     int headerLocX = 15;
     int headerLocY = height-50;
     setFontColor(fontColor, 0);

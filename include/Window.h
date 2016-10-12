@@ -1,5 +1,6 @@
 #include <gl_core_3_3.h>
 #include <GLFW/glfw3.h>
+#include <SOIL.h>
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -20,7 +21,7 @@ static void key_pressed(GLFWwindow*, int, int, int, int);
 static void window_resized(GLFWwindow*, int, int);
 
 void setProjectionMatrix(GLuint*, int, int);
-void drawMainMenu(GLuint*, int, int);
+void drawMainMenu(GLuint*, int, int, GLuint);
 void renderText(GLuint*, const char*, GLfloat, GLfloat,
         unsigned int, unsigned int, float*);
 void setClipboard(char*, unsigned int);
