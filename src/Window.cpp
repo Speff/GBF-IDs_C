@@ -2,7 +2,15 @@
 
 volatile sig_atomic_t twitConnectionInitialized = 0;
 volatile sig_atomic_t autoCopy = 0;
+volatile sig_atomic_t autoBeep = 0;
+volatile sig_atomic_t mouseClicked = 0;
+char* programStatusLine;
+char* timerMessage;
+volatile double programTimer;
+
 raidList fileRaidNames;
+int lastCopied = -1;
+
 GLuint VAO, VBO;
 GLuint program;
 int fontSizes[] = {36, 18, 16, 15, 14};
@@ -29,12 +37,14 @@ in vec2 TexCoords;\n\
 out vec4 color;\n\
 \n\
 uniform sampler2D text;\n\
-uniform vec3 textColor;\n\
+//uniform vec3 textColor;\n\
+uniform vec4 textColor;\n\
 \n\
 void main()\n\
 {    \n\
     vec4 sampled = vec4(1.0, 1.0, 1.0, texture(text, TexCoords).r);\n\
-    color = vec4(textColor, 1.0) * sampled;\n\
+    //color = vec4(textColor, 1.0) * sampled;\n\
+    color = textColor * sampled;\n\
 }  ";
 
 
@@ -43,6 +53,10 @@ int main(void){
     int screen_width = 535;
     int screen_height = 480;
 
+    programStatusLine = (char*)malloc(0);
+    timerMessage = (char*)malloc(0);
+    programTimer = -1.0;
+
     //printf("Convert 0x30cf = %2x%2x%2x\n", 
     //        (unsigned char)(codepointToUTF8(0x30cf)>>16),
     //        (unsigned char)(codepointToUTF8(0x30cf)>>8),
@@ -50,6 +64,7 @@ int main(void){
 
     printf("Reading raid names from file\n");
     fileRaidNames.twitterOutputList = (char**)malloc(0);
+    fileRaidNames.twitterOutputIDList = (char**)malloc(0);
     fileRaidNames.nTwitterOutputList = 0;
     fileRaidNames.raidNameList = getRaidNames(&(fileRaidNames.nRaidNameList));
 
@@ -141,9 +156,10 @@ int main(void){
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glfwSwapInterval(1);
 
-    // Create a callback for keypresses
+    // Create a callback for keypresses & mouseclicks
     printf("Setting GLFW callbacks\n");
     glfwSetKeyCallback(window, key_pressed);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetWindowSizeCallback(window, window_resized);
 
     // Compile the shaders
@@ -234,6 +250,14 @@ int main(void){
         //renderText(&program, text, 20.0f, 200.0f, 0.7f, fontColor);
 
         drawMainMenu(&program, screen_width, screen_height, bgTex);
+        if(programTimer > 0){
+            float fontColor[4];
+            setFontColor(fontColor, FONT_COLOR_BLACK);
+            if(programTimer <= 1.0) fontColor[3] = programTimer;
+            renderText(&program, timerMessage, 15, 15, FONT_REGULAR,
+                    FONT_SIZE_16, fontColor);
+            programTimer -= (1.0/60);
+        }
         //printf("Timer: %f\n", glfwGetTime());
 
         // Swap front and back buffers
@@ -241,18 +265,71 @@ int main(void){
 
         // Poll for and process events
         glfwPollEvents();
+
+
+        if(mouseClicked){
+            double xpos, ypos;
+            glfwGetCursorPos(window, &xpos, &ypos);
+            findWhereTheHellTheyClicked(xpos, ypos, 
+                    screen_width, screen_height);
+        }
     }
 
     glfwTerminate();
     return 0;
 }
 
+void findWhereTheHellTheyClicked(double xpos, double ypos,
+        double width, double height){
+    const char* copyMessage = "Copied ";
+
+    printf("Mouse click detected: %f, %f\n", xpos, ypos);
+
+    mouseClicked = 0;
+    ypos = height - ypos + 3; // 3px fudge factor to correct
+                              // for text rendering
+
+    if(clickedInRaidOutputList(xpos, ypos, width, height)){
+        int raidClicked = fileRaidNames.nTwitterOutputList - 1 -
+            (int)floor(RAID_LIST_LOCATIONY-ypos)/RAID_LIST_ELEMENT_SIZEY;
+
+        if(raidClicked < 0) printf("Hit in box %i\n", raidClicked);
+        else{
+            printf("Hit in box %i %s - %s\n", raidClicked,
+                    fileRaidNames.twitterOutputIDList[raidClicked],
+                    fileRaidNames.twitterOutputList[raidClicked]);
+            setClipboard(fileRaidNames.twitterOutputIDList[raidClicked], 9);
+
+            size_t len = 0;
+            while(fileRaidNames.twitterOutputList[raidClicked][len] != '\0')
+                len++;
+
+            timerMessage = (char*)realloc(timerMessage, len +
+                    sizeof(copyMessage) + 1);
+            strcpy(timerMessage, copyMessage);
+            strcat(timerMessage, fileRaidNames.twitterOutputList[raidClicked]);
+            programTimer = 2.0;
+        }
+    }
+}
+
+int clickedInRaidOutputList(double xpos, double ypos,
+        double width, double height){
+    if(xpos > RAID_LIST_LOCATIONX)
+        if(xpos < RAID_LIST_LOCATIONX + RAID_LIST_ELEMENT_SIZEX)
+            if(ypos < RAID_LIST_LOCATIONY)
+                if(ypos > RAID_LIST_LOCATIONY -
+                        RAID_LIST_ELEMENT_SIZEY*RAID_LIST_NDISPLAY)
+                    return 1;
+    return 0;
+}
+
 void drawMainMenu(GLuint* prog, int width, int height, GLuint bgTex){
     // FONTSIZE_BASE = 36PX
-    float fontColor[3];
+    float fontColor[4];
 
     // Draw background image
-    glUniform3f(glGetUniformLocation(program, "textColor"), 1.0, 1.0, 1.0);
+    glUniform4f(glGetUniformLocation(program, "textColor"), 1.0, 1.0, 1.0, 1.0);
     glActiveTexture(GL_TEXTURE0);
     glBindVertexArray(VAO);
 
@@ -279,28 +356,32 @@ void drawMainMenu(GLuint* prog, int width, int height, GLuint bgTex){
     // Draw text data
     int headerLocX = 15;
     int headerLocY = height-50;
-    setFontColor(fontColor, 0);
-    renderText(prog, "GBF Raid IDs", headerLocX, headerLocY, 1, 0, fontColor);
+    setFontColor(fontColor, FONT_COLOR_BLACK);
+    renderText(prog, "GBF Raid IDs", headerLocX, headerLocY,
+            FONT_BOLD, FONT_SIZE_36, fontColor);
     renderText(prog,
             "Press the key next to the boss' names to filter incoming IDs",
-            headerLocX, headerLocY-25, 0, 2, fontColor);
+            headerLocX, headerLocY-25, FONT_REGULAR, FONT_SIZE_16, fontColor);
 
     //int selectLocX = 15;
     //int selectLocY = height-115-20*raidNamesLength;
     int selectLocX = 200;
     int selectLocY = height-105;
     renderText(prog, "-1- Select All",
-            selectLocX, selectLocY,0, 2, fontColor);
+            selectLocX, selectLocY,FONT_REGULAR, FONT_SIZE_16, fontColor);
     renderText(prog, "-2- Select None",
-            selectLocX, selectLocY-20, 0, 2, fontColor);
-    setFontColor(fontColor, 3);
-    renderText(prog, "-3- Toggle Sound",
-            selectLocX, selectLocY-40, 0, 2, fontColor);
+            selectLocX, selectLocY-20, FONT_REGULAR, FONT_SIZE_16, fontColor);
+    setFontColor(fontColor, FONT_COLOR_DARK_GREY);
 
-    if(autoCopy) setFontColor(fontColor, 0);
-    else setFontColor(fontColor, 3);
+    if(autoBeep) setFontColor(fontColor, FONT_COLOR_BLACK);
+    else setFontColor(fontColor, FONT_COLOR_DARK_GREY);
+    renderText(prog, "-3- Toggle Sound",
+            selectLocX, selectLocY-40, FONT_REGULAR, FONT_SIZE_16, fontColor);
+
+    if(autoCopy) setFontColor(fontColor, FONT_COLOR_BLACK);
+    else setFontColor(fontColor, FONT_COLOR_DARK_GREY);
     renderText(prog, "-4- Toggle Auto-Copy",
-            selectLocX, selectLocY-60, 0, 2, fontColor);
+            selectLocX, selectLocY-60, FONT_REGULAR, FONT_SIZE_16, fontColor);
 
     int tableLocX = 15;
     int tableLocY = height - 105;
@@ -317,39 +398,40 @@ void drawMainMenu(GLuint* prog, int width, int height, GLuint bgTex){
         strcat(raidShortcutDisplay, "-");
 
         if(fileRaidNames.raidNameLegendOn[i])
-            setFontColor(fontColor, 0);
+            setFontColor(fontColor, FONT_COLOR_BLACK);
         else
-            setFontColor(fontColor, 3);
+            setFontColor(fontColor, FONT_COLOR_DARK_GREY);
         renderText(prog, raidShortcutDisplay, tableLocX, tableLocY - 20*i,
-                0, 2, fontColor);
+                FONT_REGULAR, FONT_SIZE_16, fontColor);
 
         renderText(prog, fileRaidNames.raidNameLegend[i],
                 tableLocX + tableCheckCharacterLength,
-                tableLocY - 20*i, 0, 2, fontColor);
+                tableLocY - 20*i, FONT_REGULAR, FONT_SIZE_16, fontColor);
 
         free(raidShortcutDisplay);
     }
 
-    int raidListLocX = 200;
-    int raidListLocY = height-105-5*20;
-    int raidListElemLocX = 210;
-    int raidListElemLocY = height-105-5*20-20;
-    int listLineSizeY = 19;
-    setFontColor(fontColor, 0);
-    renderText(prog, "Raid List:", raidListLocX, raidListLocY, 1, 2, fontColor);
-
+    int raidListLocX = RAID_LIST_LOCATIONX;
+    int raidListLocY = RAID_LIST_LOCATIONY;
+    int raidListElemLocX = RAID_LIST_ELEMENT_LOCATIONX;
+    int raidListElemLocY = RAID_LIST_ELEMENT_LOCATIONY;
+    int listLineSizeY = RAID_LIST_ELEMENT_SIZEY;
+    unsigned int nElementsToDisplay = RAID_LIST_NDISPLAY;
     int minDisplayElement = 0;
-    unsigned int nElementsToDisplay = 8;
+
+    setFontColor(fontColor, FONT_COLOR_BLACK);
+    renderText(prog, "Raid List:", raidListLocX, raidListLocY, FONT_BOLD,
+            FONT_SIZE_16, fontColor);
+
     if(fileRaidNames.nTwitterOutputList > nElementsToDisplay)
         minDisplayElement =
             fileRaidNames.nTwitterOutputList - nElementsToDisplay;
 
-    for(int i = fileRaidNames.nTwitterOutputList-1;
-            i >= minDisplayElement; i--){
-        setFontColor(fontColor, 0);
+    for(int i = fileRaidNames.nTwitterOutputList-1; i >= minDisplayElement; i--){
+        setFontColor(fontColor, FONT_COLOR_BLACK);
         renderText(prog, fileRaidNames.twitterOutputList[i], raidListElemLocX,
-                raidListElemLocY-listLineSizeY*
-                (fileRaidNames.nTwitterOutputList-i-1), 0, 4, fontColor);
+                raidListElemLocY-listLineSizeY*(fileRaidNames.nTwitterOutputList-i-1),
+                FONT_REGULAR, FONT_SIZE_14, fontColor);
     }
 
 }
@@ -507,8 +589,8 @@ static size_t write_callback(void *ptr, size_t size,
     char* data = (char*)malloc(realSize+1); // +1 for NULL ending
     strcpy(data, (char*)ptr);
 
-    printf("*** We read %u bytes from file\n", realSize);
-    printf("%s\n\n", data);
+    if(DEBUG) printf("*** We read %u bytes from file\n", realSize);
+    if(DEBUG) printf("%s\n\n", data);
     char* offset = strstr(data, "ID");
     int jump;
     if(offset != NULL){
@@ -602,6 +684,7 @@ char* findBoss(char* jsonData, size_t jsonDataSize, char* ID){
     }
 
     if(fileRaidNames.raidNameLegendOn[bossIndex>>1]){
+        printf("LIST CHANGED---------------\n");
         size_t bossNameLength = 0;
         while(fileRaidNames.raidNameList[bossIndex][bossNameLength] != '\0')
             bossNameLength++;
@@ -610,29 +693,39 @@ char* findBoss(char* jsonData, size_t jsonDataSize, char* ID){
         size_t displayLineFormatSize = strlen(displayLineFormat) +
             bossNameLength + 8 + 1; // 8 = ID size, 1 for Null termination
         displayLine = (char*)malloc(displayLineFormatSize); 
+        char *displayID = (char*)malloc(sizeof(char)*8 + 1);
+
+        strcpy(displayID, ID);
 
         snprintf(displayLine, displayLineFormatSize, displayLineFormat,
-                ID, fileRaidNames.raidNameList[bossIndex]);
+                displayID, fileRaidNames.raidNameList[bossIndex]);
 
-        if(autoCopy) setClipboard(ID, 9);
+        if(autoCopy) setClipboard(displayID, 9);
 
         fileRaidNames.nTwitterOutputList++;
         fileRaidNames.twitterOutputList = 
             (char**)realloc(fileRaidNames.twitterOutputList,
                     fileRaidNames.nTwitterOutputList * sizeof(char*));
-        fileRaidNames.twitterOutputList[fileRaidNames.nTwitterOutputList-1]
-            = displayLine;
+        fileRaidNames.twitterOutputIDList =
+            (char**)realloc(fileRaidNames.twitterOutputIDList,
+                    fileRaidNames.nTwitterOutputList * sizeof(char*));
+        fileRaidNames.twitterOutputList[fileRaidNames.nTwitterOutputList-1] =
+            displayLine;
+        fileRaidNames.twitterOutputIDList[fileRaidNames.nTwitterOutputList-1] =
+            displayID;
 
         printf("%s\n",
                 fileRaidNames.twitterOutputList[fileRaidNames.nTwitterOutputList
                 -1]);
+
+        if(autoBeep) Beep(784, 500);
     }
 
     free(unicodeString);
     free(unicodeStringUpper);
     free(unicodeStringLower);
 
-    printf("%s\n", retData);
+    if(DEBUG) printf("%s\n", retData);
 
     free(retData);
     return (char*)NULL;
@@ -703,8 +796,8 @@ void renderText(GLuint* prog, const char* text, GLfloat x, GLfloat y,
         unsigned int selectedFont, unsigned int fontSizeIndex, float* color){
 
     // Activate corresponding render state
-    glUniform3f(glGetUniformLocation(*prog, "textColor"), color[0],
-            color[1], color[2]);
+    glUniform4f(glGetUniformLocation(*prog, "textColor"), color[0],
+            color[1], color[2], color[3]);
     glActiveTexture(GL_TEXTURE0);
     glBindVertexArray(VAO);
 
@@ -981,11 +1074,23 @@ static void key_pressed(GLFWwindow* window, int key, int scancode,
             fileRaidNames.raidNameLegendOn[i] = 0;
         }
     }
+    if(key == '3'  && action == GLFW_PRESS){
+        if(autoBeep) autoBeep = 0;
+        else autoBeep = 1;
+        printf("Autobeep: %i\n", autoBeep);
+    }
+
     if(key == '4' && action == GLFW_PRESS){
         if(autoCopy) autoCopy = 0;
         else autoCopy = 1;
         printf("AutoCopy: %i\n", autoCopy);
     }
+}
+
+static void mouse_button_callback(GLFWwindow* window, int button,
+        int action, int mods){
+    if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+        mouseClicked = 1;
 }
 
 static void window_resized(GLFWwindow* window, int width, int height){
@@ -1002,47 +1107,63 @@ void setFontColor(float* colorVar, int colorChoice){
             colorVar[0] = 0.05f;
             colorVar[1] = 0.05f;
             colorVar[2] = 0.05f;
+            colorVar[3] = 1.0f;
             break;
+        
         case 1: // White
             colorVar[0] = 1.0f;
             colorVar[1] = 1.0f;
             colorVar[2] = 1.0f;
+            colorVar[3] = 1.0f;
             break;
+        
         case 2: // Light Grey
             colorVar[0] = 0.1f;
             colorVar[1] = 0.1f;
             colorVar[2] = 0.1f;
+            colorVar[3] = 1.0f;
             break;
+        
         case 3: // Dark Grey
             colorVar[0] = 0.7f;
             colorVar[1] = 0.7f;
             colorVar[2] = 0.7f;
+            colorVar[3] = 1.0f;
             break;
+        
         case 4: // Blue
             colorVar[0] = 0.0f;
             colorVar[1] = 0.0f;
             colorVar[2] = 1.0f;
+            colorVar[3] = 1.0f;
             break;
+        
         case 5: // Yellow
             colorVar[0] = 1.0f;
             colorVar[1] = 1.0f;
             colorVar[2] = 0.0f;
+            colorVar[3] = 1.0f;
             break;
+        
         case 6: // Purple
             colorVar[0] = 1.0f;
             colorVar[1] = 0.0f;
             colorVar[2] = 1.0f;
+            colorVar[3] = 1.0f;
             break;
+        
         case 7: // Cyan
             colorVar[0] = 0.0f;
             colorVar[1] = 1.0f;
             colorVar[2] = 1.0f;
+            colorVar[3] = 1.0f;
             break;
 
         default: // Black
             colorVar[0] = 0.0f;
             colorVar[1] = 0.0f;
             colorVar[2] = 0.0f;
+            colorVar[3] = 1.0f;
     }
 }
 

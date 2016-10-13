@@ -1,6 +1,9 @@
+#define DEBUG 0
+
 #include <gl_core_3_3.h>
 #include <GLFW/glfw3.h>
 #include <SOIL.h>
+#include <layoutDefs.h>
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -11,6 +14,7 @@
 #include <pthread.h>
 #include <signal.h> 
 #include <windows.h>
+#include <math.h>
 
 #include <curl/curl.h>
 #include <oauth.h>
@@ -18,10 +22,13 @@
 #include <oauthConfig.h>
 
 static void key_pressed(GLFWwindow*, int, int, int, int);
+static void mouse_button_callback(GLFWwindow*, int, int, int);
 static void window_resized(GLFWwindow*, int, int);
 
 void setProjectionMatrix(GLuint*, int, int);
 void drawMainMenu(GLuint*, int, int, GLuint);
+void findWhereTheHellTheyClicked(double, double, double, double);
+int clickedInRaidOutputList(double, double, double, double);
 void renderText(GLuint*, const char*, GLfloat, GLfloat,
         unsigned int, unsigned int, float*);
 void setClipboard(char*, unsigned int);
@@ -54,6 +61,7 @@ struct raidList {
     int* raidNameLegendOn;
     unsigned int nRaidNameLegend;
     char** twitterOutputList;
+    char** twitterOutputIDList;
     unsigned int nTwitterOutputList;
 };
 

@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-I$(INCDIR) -m32 -Wall -Wno-comment -O2# -mwindows
+CFLAGS=-I$(INCDIR) -m32 -Wall -Wno-comment -O2 #-mwindows
 STATIC_FLAGS=
 
 INCDIR=./include
