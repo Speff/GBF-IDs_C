@@ -29,6 +29,7 @@ void setProjectionMatrix(GLuint*, int, int);
 void drawMainMenu(GLuint*, int, int, GLuint);
 void findWhereTheHellTheyClicked(double, double, double, double);
 int clickedInRaidOutputList(double, double, double, double);
+int clickedInMenu(double, double, double, double);
 void renderText(GLuint*, const char*, GLfloat, GLfloat,
         unsigned int, unsigned int, float*);
 void setClipboard(char*, unsigned int);

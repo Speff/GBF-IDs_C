@@ -6,6 +6,12 @@
 #define   RAID_LIST_ELEMENT_SIZEY       19
 #define   RAID_LIST_NDISPLAY            8
 
+#define   OPTION_LIST_LOCATIONX           200
+#define   OPTION_LIST_LOCATIONY           (height-105)
+#define   OPTION_LIST_ELEMENT_SIZEX       150
+#define   OPTION_LIST_ELEMENT_SIZEY       20
+#define   OPTION_LIST_NDISPLAY            4
+
 #define   FONT_COLOR_BLACK        0
 #define   FONT_COLOR_WHITE        1
 #define   FONT_COLOR_LIGHT_GREY   2

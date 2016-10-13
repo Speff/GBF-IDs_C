@@ -53,6 +53,14 @@ int main(void){
     int screen_width = 535;
     int screen_height = 480;
 
+    // Open console if file "debug" exists in same folder
+    if(access("debug", F_OK) != -1){
+        AllocConsole();
+        freopen("CONIN$", "r",stdin); 
+        freopen("CONOUT$","w",stdout); 
+        freopen("CONOUT$","w",stderr);  
+    }
+
     programStatusLine = (char*)malloc(0);
     timerMessage = (char*)malloc(0);
     programTimer = -1.0;
@@ -227,7 +235,8 @@ int main(void){
          "naru.png",
          SOIL_LOAD_AUTO,
          SOIL_CREATE_NEW_ID,
-         SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+         SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
+         //SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_COMPRESS_TO_DXT
         );
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -311,6 +320,49 @@ void findWhereTheHellTheyClicked(double xpos, double ypos,
             programTimer = 2.0;
         }
     }
+
+    if(clickedInMenu(xpos, ypos, width, height)){
+        int optionClicked = 2 +  
+            (int)floor((OPTION_LIST_LOCATIONY-ypos)/OPTION_LIST_ELEMENT_SIZEY);
+
+        printf("Options menu clicked: %i\n", optionClicked);
+        
+        switch(optionClicked){
+            case 1:
+                for(unsigned int i = 0; i < fileRaidNames.nRaidNameLegend; i++){
+                    fileRaidNames.raidNameLegendOn[i] = 1;
+                }
+                break;
+            case 2:
+                for(unsigned int i = 0; i < fileRaidNames.nRaidNameLegend; i++){
+                    fileRaidNames.raidNameLegendOn[i] = 0;
+                }
+                break;
+            case 3:
+                if(autoBeep) autoBeep = 0;
+                else autoBeep = 1;
+                printf("Autobeep: %i\n", autoBeep);
+                break;
+            case 4:
+                if(autoCopy) autoCopy = 0;
+                else autoCopy = 1;
+                printf("AutoCopy: %i\n", autoCopy);
+                break;
+            default:
+                break;
+        }
+    }
+
+}
+
+int clickedInMenu(double xpos, double ypos, double width, double height){
+    if(xpos > OPTION_LIST_LOCATIONX)
+        if(xpos < OPTION_LIST_LOCATIONX + OPTION_LIST_ELEMENT_SIZEX)
+            if(ypos < OPTION_LIST_LOCATIONY + OPTION_LIST_ELEMENT_SIZEY)
+                if(ypos > OPTION_LIST_LOCATIONY - 
+                        OPTION_LIST_ELEMENT_SIZEY*(OPTION_LIST_NDISPLAY-1))
+                    return 1;
+    return 0;
 }
 
 int clickedInRaidOutputList(double xpos, double ypos,
@@ -327,22 +379,43 @@ int clickedInRaidOutputList(double xpos, double ypos,
 void drawMainMenu(GLuint* prog, int width, int height, GLuint bgTex){
     // FONTSIZE_BASE = 36PX
     float fontColor[4];
+    GLint bgWidth, bgHeight;
+    GLfloat bgAR;
 
     // Draw background image
     glUniform4f(glGetUniformLocation(program, "textColor"), 1.0, 1.0, 1.0, 1.0);
     glActiveTexture(GL_TEXTURE0);
     glBindVertexArray(VAO);
 
-    GLfloat bgVerts[6][4] = {
-        { 0              , (GLfloat)height , 0.0 , 0.0 } ,
-        { 0              , 0               , 0.0 , 1.0 } ,
-        { (GLfloat)width , 0               , 1.0 , 1.0 } ,
-
-        { 0              , (GLfloat)height , 0.0 , 0.0 } ,
-        { (GLfloat)width , 0               , 1.0 , 1.0 } ,
-        { (GLfloat)width , (GLfloat)height , 1.0 , 0.0 }
-    };
     glBindTexture(GL_TEXTURE_2D, bgTex);
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &bgWidth);
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &bgHeight);
+    bgAR = ((GLfloat)bgWidth)/bgHeight;
+
+    GLfloat bgWidthR, bgHeightR, bgOffsetX, bgOffsetY;
+    bgWidthR  = (GLfloat)width;
+    bgHeightR = (GLfloat)height;
+    bgOffsetX = 0.0;
+    bgOffsetY = 0.0;
+
+    if(bgAR > 1){
+        bgHeightR = bgHeightR/bgAR;
+        bgOffsetY = ((GLfloat)height)/2 - bgHeightR/2;
+    }
+    else{
+        bgWidthR = bgWidthR*bgAR;
+        bgOffsetX = ((GLfloat)width)/2 - bgWidthR/2;
+    }
+
+    GLfloat bgVerts[6][4] = {
+        { bgOffsetX            , bgHeightR + bgOffsetY , 0.0 , 0.0 } ,
+        { bgOffsetX            , bgOffsetY             , 0.0 , 1.0 } ,
+        { bgWidthR + bgOffsetX , bgOffsetY             , 1.0 , 1.0 } ,
+
+        { bgOffsetX            , bgHeightR + bgOffsetY , 0.0 , 0.0 } ,
+        { bgWidthR + bgOffsetX , bgOffsetY             , 1.0 , 1.0 } ,
+        { bgWidthR + bgOffsetX , bgHeightR + bgOffsetY , 1.0 , 0.0 }
+    };
     // Update content of VBO memory
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(bgVerts), bgVerts);
@@ -365,23 +438,26 @@ void drawMainMenu(GLuint* prog, int width, int height, GLuint bgTex){
 
     //int selectLocX = 15;
     //int selectLocY = height-115-20*raidNamesLength;
-    int selectLocX = 200;
-    int selectLocY = height-105;
+    int selectLocX = OPTION_LIST_LOCATIONX;
+    int selectLocY = OPTION_LIST_LOCATIONY;
     renderText(prog, "-1- Select All",
             selectLocX, selectLocY,FONT_REGULAR, FONT_SIZE_16, fontColor);
     renderText(prog, "-2- Select None",
-            selectLocX, selectLocY-20, FONT_REGULAR, FONT_SIZE_16, fontColor);
+            selectLocX, selectLocY-OPTION_LIST_ELEMENT_SIZEY,
+            FONT_REGULAR, FONT_SIZE_16, fontColor);
     setFontColor(fontColor, FONT_COLOR_DARK_GREY);
 
     if(autoBeep) setFontColor(fontColor, FONT_COLOR_BLACK);
     else setFontColor(fontColor, FONT_COLOR_DARK_GREY);
     renderText(prog, "-3- Toggle Sound",
-            selectLocX, selectLocY-40, FONT_REGULAR, FONT_SIZE_16, fontColor);
+            selectLocX, selectLocY-2*OPTION_LIST_ELEMENT_SIZEY,
+            FONT_REGULAR, FONT_SIZE_16, fontColor);
 
     if(autoCopy) setFontColor(fontColor, FONT_COLOR_BLACK);
     else setFontColor(fontColor, FONT_COLOR_DARK_GREY);
     renderText(prog, "-4- Toggle Auto-Copy",
-            selectLocX, selectLocY-60, FONT_REGULAR, FONT_SIZE_16, fontColor);
+            selectLocX, selectLocY-3*OPTION_LIST_ELEMENT_SIZEY,
+            FONT_REGULAR, FONT_SIZE_16, fontColor);
 
     int tableLocX = 15;
     int tableLocY = height - 105;
@@ -700,7 +776,22 @@ char* findBoss(char* jsonData, size_t jsonDataSize, char* ID){
         snprintf(displayLine, displayLineFormatSize, displayLineFormat,
                 displayID, fileRaidNames.raidNameList[bossIndex]);
 
-        if(autoCopy) setClipboard(displayID, 9);
+        if(autoCopy){
+            const char* copyMessage = "Copied ";
+            size_t len = 0;
+            
+            setClipboard(displayID, 9);
+            
+            while(displayLine[len] != '\0')
+                len++;
+
+            timerMessage = (char*)realloc(timerMessage, len +
+                    sizeof(copyMessage) + 4);
+            strcpy(timerMessage, copyMessage);
+            strcat(timerMessage, displayLine);
+            timerMessage[len+sizeof(copyMessage)+3] = '\0';
+            programTimer = 2.0;
+        }
 
         fileRaidNames.nTwitterOutputList++;
         fileRaidNames.twitterOutputList = 
