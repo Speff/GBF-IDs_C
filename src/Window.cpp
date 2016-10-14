@@ -275,7 +275,6 @@ int main(void){
         // Poll for and process events
         glfwPollEvents();
 
-
         if(mouseClicked){
             double xpos, ypos;
             glfwGetCursorPos(window, &xpos, &ypos);
@@ -302,7 +301,7 @@ void findWhereTheHellTheyClicked(double xpos, double ypos,
         int raidClicked = fileRaidNames.nTwitterOutputList - 1 -
             (int)floor(RAID_LIST_LOCATIONY-ypos)/RAID_LIST_ELEMENT_SIZEY;
 
-        if(raidClicked < 0) printf("Hit in box %i\n", raidClicked);
+        if(raidClicked < 0) printf("Hit in output item %i\n", raidClicked);
         else{
             printf("Hit in box %i %s - %s\n", raidClicked,
                     fileRaidNames.twitterOutputIDList[raidClicked],
@@ -317,7 +316,7 @@ void findWhereTheHellTheyClicked(double xpos, double ypos,
                     sizeof(copyMessage) + 1);
             strcpy(timerMessage, copyMessage);
             strcat(timerMessage, fileRaidNames.twitterOutputList[raidClicked]);
-            programTimer = 2.0;
+            programTimer = 1.5;
         }
     }
 
@@ -353,6 +352,19 @@ void findWhereTheHellTheyClicked(double xpos, double ypos,
         }
     }
 
+    if(clickedInLegend(xpos, ypos, width, height)){
+        int legendClicked = 1 +  
+            (int)floor((LEGEND_LIST_LOCATIONY-ypos)/LEGEND_LIST_ELEMENT_SIZEY);
+
+        if(legendClicked < 0) printf("Hit in legend item %i\n", legendClicked);
+        else{
+            printf("Hit in legend %i %s\n", legendClicked,
+                    fileRaidNames.raidNameLegend[legendClicked]);
+            if(fileRaidNames.raidNameLegendOn[legendClicked])
+                fileRaidNames.raidNameLegendOn[legendClicked] = 0;
+            else fileRaidNames.raidNameLegendOn[legendClicked] = 1;
+        }
+    }
 }
 
 int clickedInMenu(double xpos, double ypos, double width, double height){
@@ -372,6 +384,16 @@ int clickedInRaidOutputList(double xpos, double ypos,
             if(ypos < RAID_LIST_LOCATIONY)
                 if(ypos > RAID_LIST_LOCATIONY -
                         RAID_LIST_ELEMENT_SIZEY*RAID_LIST_NDISPLAY)
+                    return 1;
+    return 0;
+}
+
+int clickedInLegend(double xpos, double ypos, double width, double height){
+    if(xpos > LEGEND_LIST_LOCATIONX)
+        if(xpos < LEGEND_LIST_LOCATIONX + LEGEND_LIST_ELEMENT_SIZEX)
+            if(ypos < LEGEND_LIST_LOCATIONY + LEGEND_LIST_LOCATIONY)
+                if(ypos > LEGEND_LIST_LOCATIONY - LEGEND_LIST_ELEMENT_SIZEY*
+                        (fileRaidNames.nRaidNameLegend-1))
                     return 1;
     return 0;
 }
@@ -459,8 +481,8 @@ void drawMainMenu(GLuint* prog, int width, int height, GLuint bgTex){
             selectLocX, selectLocY-3*OPTION_LIST_ELEMENT_SIZEY,
             FONT_REGULAR, FONT_SIZE_16, fontColor);
 
-    int tableLocX = 15;
-    int tableLocY = height - 105;
+    int tableLocX = LEGEND_LIST_LOCATIONX;
+    int tableLocY = LEGEND_LIST_LOCATIONY;
     int tableCheckCharacterLength = 25;
 
     for(unsigned int i = 0; i < fileRaidNames.nRaidNameLegend; i++){
@@ -517,19 +539,31 @@ const char *ttwytter_request(const char *http_method, const char *url,
 
     struct curl_slist *slist = NULL;
     struct curlArgs pthreadArgs;
-    const char *consumer_key = 
-        "u0F80FdfqkskJPj43N8qzDi6w";
-    const char *consumer_secret = 
-        "EQovmAAo5MQIuHy0MvXNL6vJdF5j34DrcCw1lWxUKVIooSjU5g";
-    const char *user_token = 
-        "2784168906-L6G5msk0FCu5SbPcajGirYaUiEQFFm15ToehdSB";
-    const char *user_secret = 
-        "ocfwu7wSfDAWB5mja5IqaFdiGx7y20PEYNET6yCHkozUr";
+    char *consumer_key    = (char*)malloc(26*sizeof(char) + 1);
+    char *consumer_secret = (char*)malloc(51*sizeof(char) + 1);
+    char *user_token      = (char*)malloc(51*sizeof(char) + 1);
+    char *user_secret     = (char*)malloc(46*sizeof(char) + 1);
 
     char *ser_url, **argv, *auth_params,
          auth_header[1024], *non_auth_params, *final_url, *temp_url;
     int argc;
     pthread_t tid[1];
+
+    FILE *twitFile;
+    twitFile = fopen("twit.txt", "r");
+    if(fscanf(twitFile, "consumer_key=%s\n", consumer_key)){
+        if(fscanf(twitFile, "consumer_secret=%s\n", consumer_secret)){
+            if(fscanf(twitFile, "user_token=%s\n", user_token)){
+                if(fscanf(twitFile, "user_secret=%s", user_secret)){
+                    printf("Read twitter credentials\n");
+                }
+                else printf("====Error Reading Twitter user_secret====\n");
+            }
+            else printf("====Error Reading Twitter user_token====\n");
+        }
+        else printf("====Error Reading Twitter consumer_secret====\n");
+    }
+    else printf("====Error Reading Twitter consumer_key====\n");
 
     ser_url = (char*)malloc(strlen(url) + strlen(url_enc_args) + 2);
     sprintf(ser_url, "%s?%s", url, url_enc_args);
@@ -790,7 +824,7 @@ char* findBoss(char* jsonData, size_t jsonDataSize, char* ID){
             strcpy(timerMessage, copyMessage);
             strcat(timerMessage, displayLine);
             timerMessage[len+sizeof(copyMessage)+3] = '\0';
-            programTimer = 2.0;
+            programTimer = 1.5;
         }
 
         fileRaidNames.nTwitterOutputList++;

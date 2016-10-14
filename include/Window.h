@@ -1,4 +1,4 @@
-#define DEBUG 0
+#define DEBUG 1
 
 #include <gl_core_3_3.h>
 #include <GLFW/glfw3.h>
@@ -30,6 +30,7 @@ void drawMainMenu(GLuint*, int, int, GLuint);
 void findWhereTheHellTheyClicked(double, double, double, double);
 int clickedInRaidOutputList(double, double, double, double);
 int clickedInMenu(double, double, double, double);
+int clickedInLegend(double, double, double, double);
 void renderText(GLuint*, const char*, GLfloat, GLfloat,
         unsigned int, unsigned int, float*);
 void setClipboard(char*, unsigned int);

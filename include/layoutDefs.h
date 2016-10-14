@@ -12,6 +12,11 @@
 #define   OPTION_LIST_ELEMENT_SIZEY       20
 #define   OPTION_LIST_NDISPLAY            4
 
+#define   LEGEND_LIST_LOCATIONX           15
+#define   LEGEND_LIST_LOCATIONY           (height-105)
+#define   LEGEND_LIST_ELEMENT_SIZEX       150
+#define   LEGEND_LIST_ELEMENT_SIZEY       20
+
 #define   FONT_COLOR_BLACK        0
 #define   FONT_COLOR_WHITE        1
 #define   FONT_COLOR_LIGHT_GREY   2
