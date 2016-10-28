@@ -6,6 +6,8 @@ volatile sig_atomic_t autoBeep = 0;
 volatile sig_atomic_t mouseClicked = 0;
 char* programStatusLine;
 char* timerMessage;
+char* lmTimerText;
+volatile int messageRec = 0;
 volatile double programTimer;
 
 raidList fileRaidNames;
@@ -63,7 +65,9 @@ int main(void){
 
     programStatusLine = (char*)malloc(0);
     timerMessage = (char*)malloc(0);
+    lmTimerText = (char*)malloc(0);
     programTimer = -1.0;
+    double lastMessageTimer = 0.0;
 
     //printf("Convert 0x30cf = %2x%2x%2x\n", 
     //        (unsigned char)(codepointToUTF8(0x30cf)>>16),
@@ -263,11 +267,27 @@ int main(void){
             float fontColor[4];
             setFontColor(fontColor, FONT_COLOR_BLACK);
             if(programTimer <= 1.0) fontColor[3] = programTimer;
-            renderText(&program, timerMessage, 15, 15, FONT_REGULAR,
+            renderText(&program, timerMessage, 15, 35, FONT_REGULAR,
                     FONT_SIZE_16, fontColor);
             programTimer -= (1.0/60);
         }
         //printf("Timer: %f\n", glfwGetTime());
+
+        if(messageRec){
+            messageRec = 0;
+            lastMessageTimer = 0.0;
+        }
+        lastMessageTimer += (1.0/60);
+        const char* lmTimerTextPrefix = "Time since last message: ";
+        size_t lenTimerText = sizeof(lmTimerTextPrefix) + 20;
+        lmTimerText = (char*)calloc(1, lenTimerText);
+        sprintf(lmTimerText, "%s %2.2f", lmTimerTextPrefix, lastMessageTimer);
+        printf("%s\n", lmTimerText);
+        float fColor[4];
+        setFontColor(fColor, FONT_COLOR_BLACK);
+        renderText(&program, lmTimerText, 15, 15, FONT_REGULAR,
+                FONT_SIZE_16, fColor);
+        free(lmTimerText);
 
         // Swap front and back buffers
         glfwSwapBuffers(window);
@@ -281,6 +301,7 @@ int main(void){
             findWhereTheHellTheyClicked(xpos, ypos, 
                     screen_width, screen_height);
         }
+
     }
 
     glfwTerminate();
@@ -682,7 +703,8 @@ static void *initTwitterConnection(void *arguments){
     curl_easy_cleanup(curl);
 
     printf("Twitter connection destroyed. Waiting %i seconds\n", retryDelay);
-    sleep(retryDelay);
+    //sleep(retryDelay);
+    sleep(5);
 
     vtwitArgs.arg4 = vtwitArgs.arg4 * 2;
 
@@ -845,6 +867,8 @@ char* findBoss(char* jsonData, size_t jsonDataSize, char* ID){
 
         if(autoBeep) Beep(784, 500);
     }
+
+    messageRec = 1;
 
     free(unicodeString);
     free(unicodeStringUpper);
